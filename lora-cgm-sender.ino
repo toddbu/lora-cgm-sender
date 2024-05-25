@@ -136,11 +136,21 @@ void vHttpsTask(void* pvParameters) {
           u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
           u8g2.sendBuffer();  // transfer internal memory to the display
 #elif DISPLAY_TYPE_ST7735_128_160
+          uint32_t color;
+          if ((mgPerDl < 70) ||
+              (mgPerDl > 250)) {
+            color = TFT_RED;
+          } else if ((mgPerDl >= 70 && mgPerDl <= 80) ||
+                     (mgPerDl >= 180 && mgPerDl <= 250)) {
+            color = TFT_YELLOW;
+          } else {
+            color = TFT_GREEN;
+          }
           sprintf(displayBuffer, " %d", mgPerDl);
           tft.fillScreen(TFT_BLACK);
-          tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
+          tft.drawRect(0, 0, tft.width(), tft.height(), color);
           tft.setCursor(0, 4, 4);
-          tft.setTextColor(TFT_GREEN);
+          tft.setTextColor(color);
           tft.setTextSize(3);
           tft.println(displayBuffer);
           oldMgPerDl = mgPerDl;
