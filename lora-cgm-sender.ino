@@ -1,0 +1,228 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
+#include "credentials.h"
+
+// #define DISPLAY_TYPE_LCD_042 true
+#define DISPLAY_TYPE_ST7735_128_160 true
+
+#ifdef DISPLAY_TYPE_LCD_042
+#include <U8g2lib.h>
+#include <Wire.h>
+#define SDA_PIN 5
+#define SCL_PIN 6
+U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
+#elif DISPLAY_TYPE_ST7735_128_160
+#include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
+#include <SPI.h>
+TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
+#endif
+
+// Setting the clock...
+void setClock() {
+  configTime(0, 0, "pool.ntp.org");
+
+  Serial.print(F("Waiting for NTP time sync: "));
+  time_t nowSecs = time(nullptr);
+  while (nowSecs < 8 * 3600 * 2) {
+    delay(500);
+    Serial.print(F("."));
+    yield();
+    nowSecs = time(nullptr);
+  }
+
+  Serial.println();
+  struct tm timeinfo;
+  gmtime_r(&nowSecs, &timeinfo);
+  Serial.print("Current time: ");
+  Serial.print(asctime(&timeinfo));
+}
+
+String token;
+long tokenExpires = 0;
+bool callApi(const char* endpoint, bool performLogin, JsonDocument* doc) {
+  WiFiClientSecure client;
+  HTTPClient https;
+  client.setInsecure();
+
+  // Serial.println("[HTTPS] begin...");
+  https.addHeader("Content-Type", "application/json");
+  https.addHeader("product", "llu.android");
+  https.addHeader("version", "4.9.0");
+  https.addHeader("user-agent", "curl/8.4.0");
+  https.addHeader("accept", "*/*");
+  if (!performLogin) {
+    String authorization = "Bearer " + token;
+    https.addHeader("Authorization", authorization);
+  }
+
+  if (!https.begin(client, endpoint)) {  // HTTPS
+    Serial.println("[HTTPS] Unable to connect");
+    https.end();
+    return false;
+  }
+
+  int httpCode;
+  if (performLogin) {
+    // Serial.println("[HTTPS] POST...");
+    char cgmCredentials[128];
+    sprintf(cgmCredentials, "{\"email\":\"%s\",\"password\":\"%s\"}", CGM_USERNAME, CGM_PASSWORD);
+    httpCode = https.POST(cgmCredentials);
+  } else {
+    // Serial.println("[HTTPS] GET...");
+    httpCode = https.GET();
+  }
+
+  // httpCode will be negative on error
+  if (httpCode <= 0) {
+    Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
+    https.end();
+    return false;
+  }
+
+  if ((httpCode != HTTP_CODE_OK) &&
+      (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
+    Serial.printf("[HTTPS] response code: %d\n", httpCode);
+    Serial.println("[HTTPS] request not processed due to response code");
+    https.end();
+    return false;
+  }
+
+  String payload = https.getString();
+  // https.writeToStream(&Serial);  // Print the response body
+  deserializeJson(*doc, payload);
+
+  https.end();
+
+  return true;
+}
+
+long httpsTaskHighWaterMark = LONG_MAX;
+char displayBuffer[32];
+long oldMgPerDl = -1;
+void vHttpsTask(void* pvParameters) {
+  while (true) {
+    JsonDocument doc;
+
+    if (time(nullptr) > tokenExpires) {
+      if (callApi("https://api.libreview.io/llu/auth/login", true, &doc)) {
+        token = (const char*) doc["data"]["authTicket"]["token"];
+        tokenExpires = (long) doc["data"]["authTicket"]["expires"];
+
+        struct tm timeinfo;
+        gmtime_r(&tokenExpires, &timeinfo);
+        Serial.print("Auth token expires at ");
+        Serial.println(asctime(&timeinfo));
+      }
+    }
+
+    if (time(nullptr) < tokenExpires) {
+      if (callApi("https://api.libreview.io/llu/connections", false, &doc)) {
+        JsonObject connection = doc["data"][0];
+        long mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
+        const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
+        Serial.print("Glucose level = ");
+        Serial.print(mgPerDl);
+        Serial.print(" mg/dL at ");
+        Serial.println(timestamp);
+
+        if (mgPerDl != oldMgPerDl) {
+#ifdef DISPLAY_TYPE_LCD_042
+          u8g2.clearBuffer();  // clear the internal memory
+          u8g2.setFont(u8g_font_9x18);  // choose a suitable font
+          sprintf(displayBuffer, "%d", mgPerDl);
+          u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
+          u8g2.sendBuffer();  // transfer internal memory to the display
+#elif DISPLAY_TYPE_ST7735_128_160
+          sprintf(displayBuffer, " %d", mgPerDl);
+          tft.fillScreen(TFT_BLACK);
+          tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
+          tft.setCursor(0, 4, 4);
+          tft.setTextColor(TFT_GREEN);
+          tft.setTextSize(3);
+          tft.println(displayBuffer);
+          oldMgPerDl = mgPerDl;
+#endif
+        }
+      }
+    } else {
+      Serial.println("Auth token is outdated!");
+      Serial.println("It should be automatically reauthorized the next time we attempt to fetch the data.");
+      Serial.println("If not then the login credentials are bad");
+    }
+
+    if (uxTaskGetStackHighWaterMark(NULL) < httpsTaskHighWaterMark) {
+      Serial.printf("httpsTaskHighWaterMark has changed from %d to %d\n", (httpsTaskHighWaterMark == LONG_MAX ? -1 : httpsTaskHighWaterMark), uxTaskGetStackHighWaterMark(NULL));
+      httpsTaskHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+    }
+
+    vTaskDelay(60000);
+  }
+}
+
+void setup() {
+#if DISPLAY_TYPE_ST7735_128_160
+  tft.init();
+  tft.setRotation(3);
+  tft.fillScreen(TFT_BLACK);
+  tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
+  tft.setCursor(0, 4, 4);
+  tft.setTextColor(TFT_GREEN);
+  tft.println(" Waiting...");
+#endif
+
+  Serial.begin(9600);
+  unsigned long baseMillis = millis();
+  while (!Serial &&
+         ((millis() - baseMillis) < 5000)) {
+    // delay(1000);
+  }
+
+  Serial.println();
+  Serial.println();
+  Serial.println();
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  Serial.print("Connecting to Wi-Fi");
+  baseMillis = millis();
+  while ((WiFi.status() != WL_CONNECTED) &&
+         ((millis() - baseMillis) < 10000)) {
+    Serial.print(".");
+    delay(1000);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  setClock();  
+
+  BaseType_t xReturned;
+  TaskHandle_t xHandle = NULL;
+
+  #define STACK_SIZE 6144  // 6KB
+  xReturned = xTaskCreate(
+                  vHttpsTask,         /* Function that implements the task. */
+                  "HTTPS",           /* Text name for the task. */
+                  STACK_SIZE,        /* Stack size in words, not bytes. */
+                  NULL,              /* Parameter passed into the task. */
+                  tskIDLE_PRIORITY,  /* Priority at which the task is created. */
+                  &xHandle);         /* Used to pass out the created task's handle. */
+
+  if (xReturned == pdPASS) {
+      /* The task was created.  Use the task's handle to delete the task. */
+      // vTaskDelete( xHandle );
+  }
+
+#ifdef DISPLAY_TYPE_LCD_042
+  Wire.begin(SDA_PIN, SCL_PIN);
+  u8g2.begin();
+#endif
+}
+
+void loop() {
+  vTaskDelay(1000);
+}
