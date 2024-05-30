@@ -4,7 +4,46 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include "credentials.h"
+#include <Crypto.h>
+#include <ChaCha.h>
+#include <SPI.h>
+#include <LoRa.h>
+#include <LoRaCrypto.h>
+#include <LoRaCryptoCreds.h>
 
+// #define ENABLE_LORA true
+#define ENABLE_DISPLAY true
+
+#ifdef ENABLE_LORA
+LoRaCrypto* loRaCrypto;
+
+enum MESSAGE_TYPE {
+  messageTypeHealth = 1
+};
+
+void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
+  LoRa.idle();
+  LoRa.beginPacket();
+
+  byte encryptedMessage[255];
+  uint encryptedMessageLength;
+  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, 1, messageType, data, dataLength);
+  LoRa.write(encryptedMessage, encryptedMessageLength);
+
+  Serial.print("Sending packet: ");
+  Serial.print(counter);
+  Serial.print(", type = ");
+  Serial.print(messageType);
+  Serial.print(", length = ");
+  Serial.println(encryptedMessageLength);
+
+  LoRa.endPacket();
+  delay(2000);
+  LoRa.sleep();
+}
+#endif
+
+#ifdef ENABLE_DISPLAY
 // #define DISPLAY_TYPE_LCD_042 true
 #define DISPLAY_TYPE_ST7735_128_160 true
 
@@ -16,8 +55,8 @@
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
 #elif DISPLAY_TYPE_ST7735_128_160
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
-#include <SPI.h>
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
+#endif
 #endif
 
 // Setting the clock...
@@ -129,6 +168,7 @@ void vHttpsTask(void* pvParameters) {
         Serial.println(timestamp);
 
         if (mgPerDl != oldMgPerDl) {
+#ifdef ENABLE_DISPLAY
 #ifdef DISPLAY_TYPE_LCD_042
           u8g2.clearBuffer();  // clear the internal memory
           u8g2.setFont(u8g_font_9x18);  // choose a suitable font
@@ -141,7 +181,7 @@ void vHttpsTask(void* pvParameters) {
               (mgPerDl > 250)) {
             color = TFT_RED;
           } else if ((mgPerDl >= 70 && mgPerDl <= 80) ||
-                     (mgPerDl >= 180 && mgPerDl <= 250)) {
+                     (mgPerDl >= 181 && mgPerDl <= 250)) {
             color = TFT_YELLOW;
           } else {
             color = TFT_GREEN;
@@ -153,7 +193,13 @@ void vHttpsTask(void* pvParameters) {
           tft.setTextColor(color);
           tft.setTextSize(3);
           tft.println(displayBuffer);
+#endif
+#endif
           oldMgPerDl = mgPerDl;
+
+#ifdef ENABLE_LORA
+          byte temp = mgPerDl & 0xFF;
+          sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
 #endif
         }
       }
@@ -173,7 +219,11 @@ void vHttpsTask(void* pvParameters) {
 }
 
 void setup() {
-#if DISPLAY_TYPE_ST7735_128_160
+#ifdef ENABLE_DISPLAY
+#ifdef DISPLAY_TYPE_LCD_042
+  Wire.begin(SDA_PIN, SCL_PIN);
+  u8g2.begin();
+#elif DISPLAY_TYPE_ST7735_128_160
   tft.init();
   tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
@@ -182,12 +232,13 @@ void setup() {
   tft.setTextColor(TFT_GREEN);
   tft.println(" Waiting...");
 #endif
+#endif
 
   Serial.begin(9600);
   unsigned long baseMillis = millis();
   while (!Serial &&
          ((millis() - baseMillis) < 5000)) {
-    // delay(1000);
+    delay(1000);
   }
 
   Serial.println();
@@ -227,9 +278,25 @@ void setup() {
       // vTaskDelete( xHandle );
   }
 
-#ifdef DISPLAY_TYPE_LCD_042
-  Wire.begin(SDA_PIN, SCL_PIN);
-  u8g2.begin();
+#ifdef ENABLE_LORA
+  // LoRa.setPins(ss, reset, dio0);
+  LoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
+
+  if (!LoRa.begin(912900000)) {
+    Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
+    delay(60000);
+    ESP.restart();
+    // while (1);
+  }
+
+  LoRa.setSpreadingFactor(10);
+  LoRa.setSignalBandwidth(125000);
+  LoRa.setCodingRate4(5);
+  LoRa.setPreambleLength(8);
+  LoRa.setSyncWord(0x12);
+  LoRa.enableCrc();
+
+  loRaCrypto = new LoRaCrypto(&encryptionCredentials);
 #endif
 }
 
