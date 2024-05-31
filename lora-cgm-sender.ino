@@ -11,8 +11,8 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
-#define ENABLE_LORA
-// #define ENABLE_DISPLAY
+// #define ENABLE_LORA
+#define ENABLE_DISPLAY
 
 #ifdef ENABLE_LORA
 LoRaCrypto* loRaCrypto;
@@ -21,17 +21,25 @@ enum MESSAGE_TYPE {
   messageTypeHealth = 1
 };
 
-// LoRaClass myLoRa;
-#define myLoRa LoRa
+LoRaClass myLoRa;
+// #define myLoRa LoRa
 
 void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
+  Serial.print("there0.3 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   myLoRa.idle();
+  Serial.print("there0.6 = ");
   myLoRa.beginPacket();
 
+  Serial.print("there1 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   byte encryptedMessage[255];
   uint encryptedMessageLength;
   uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, 1, messageType, data, dataLength);
   myLoRa.write(encryptedMessage, encryptedMessageLength);
+
+  Serial.print("there2 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 
   Serial.print("Sending packet: ");
   Serial.print(counter);
@@ -40,9 +48,13 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
   Serial.print(", length = ");
   Serial.println(encryptedMessageLength);
 
+  Serial.print("there3 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   myLoRa.endPacket();
   delay(2000);
   myLoRa.sleep();
+  Serial.print("there4 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 }
 #endif
 
@@ -56,7 +68,7 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
 #define SDA_PIN 5
 #define SCL_PIN 6
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
-#elif DISPLAY_TYPE_ST7735_128_160
+#else ifdef DISPLAY_TYPE_ST7735_128_160
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
@@ -178,7 +190,7 @@ void vHttpsTask(void* pvParameters) {
           sprintf(displayBuffer, "%d", mgPerDl);
           u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
           u8g2.sendBuffer();  // transfer internal memory to the display
-#elif DISPLAY_TYPE_ST7735_128_160
+#else ifdef DISPLAY_TYPE_ST7735_128_160
           uint32_t color;
           if ((mgPerDl < 70) ||
               (mgPerDl > 250)) {
@@ -201,8 +213,12 @@ void vHttpsTask(void* pvParameters) {
           oldMgPerDl = mgPerDl;
 
 #ifdef ENABLE_LORA
+          Serial.print("there0 = ");
+          Serial.println(uxTaskGetStackHighWaterMark(NULL));
           byte temp = mgPerDl & 0xFF;
           sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
+          Serial.print("there9 = ");
+          Serial.println(uxTaskGetStackHighWaterMark(NULL));
 #endif
         }
       }
@@ -222,21 +238,6 @@ void vHttpsTask(void* pvParameters) {
 }
 
 void setup() {
-#ifdef ENABLE_DISPLAY
-#ifdef DISPLAY_TYPE_LCD_042
-  Wire.begin(SDA_PIN, SCL_PIN);
-  u8g2.begin();
-#elif DISPLAY_TYPE_ST7735_128_160
-  tft.init();
-  tft.setRotation(3);
-  tft.fillScreen(TFT_BLACK);
-  tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
-  tft.setCursor(0, 4, 4);
-  tft.setTextColor(TFT_GREEN);
-  tft.println(" Waiting...");
-#endif
-#endif
-
   Serial.begin(9600);
   unsigned long baseMillis = millis();
   while (!Serial &&
@@ -247,6 +248,19 @@ void setup() {
   Serial.println();
   Serial.println();
   Serial.println();
+
+#ifdef DISPLAY_TYPE_LCD_042
+  Wire.begin(SDA_PIN, SCL_PIN);
+  u8g2.begin();
+#else ifdef DISPLAY_TYPE_ST7735_128_160
+  tft.init();
+  tft.setRotation(3);
+  tft.fillScreen(TFT_BLACK);
+  tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
+  tft.setCursor(0, 4, 4);
+  tft.setTextColor(TFT_GREEN);
+  tft.println(" Waiting...");
+#endif
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -265,13 +279,17 @@ void setup() {
   setClock();  
 
 #ifdef ENABLE_LORA
-  // SPIClass spi(FSPI);
-  // myLoRa.setSPI(spi);
-  // spi.begin(sck, miso, mosi, ss);
+  Serial.print("here0 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
+  SPIClass spi(FSPI);
+  myLoRa.setSPI(spi);
+  spi.begin(SCK, MISO, MOSI, SS);
   // MISO;
   // MOSI;
   // SCK;
   // SS;
+  Serial.print("here1 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 
   // myLoRa.setPins(ss, reset, dio0);
   myLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
@@ -292,12 +310,14 @@ void setup() {
   myLoRa.enableCrc();
 
   loRaCrypto = new LoRaCrypto(&encryptionCredentials);
+  Serial.print("here9 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 #endif
 
   BaseType_t xReturned;
   TaskHandle_t xHandle = NULL;
 
-  #define STACK_SIZE 6144  // 6KB
+  #define STACK_SIZE 16384  // 16KB
   xReturned = xTaskCreate(
                   vHttpsTask,         /* Function that implements the task. */
                   "HTTPS",           /* Text name for the task. */
