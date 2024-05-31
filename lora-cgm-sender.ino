@@ -11,8 +11,8 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
-// #define ENABLE_LORA true
-#define ENABLE_DISPLAY true
+#define ENABLE_LORA
+// #define ENABLE_DISPLAY
 
 #ifdef ENABLE_LORA
 LoRaCrypto* loRaCrypto;
@@ -21,14 +21,17 @@ enum MESSAGE_TYPE {
   messageTypeHealth = 1
 };
 
+// LoRaClass myLoRa;
+#define myLoRa LoRa
+
 void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
-  LoRa.idle();
-  LoRa.beginPacket();
+  myLoRa.idle();
+  myLoRa.beginPacket();
 
   byte encryptedMessage[255];
   uint encryptedMessageLength;
   uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, 1, messageType, data, dataLength);
-  LoRa.write(encryptedMessage, encryptedMessageLength);
+  myLoRa.write(encryptedMessage, encryptedMessageLength);
 
   Serial.print("Sending packet: ");
   Serial.print(counter);
@@ -37,15 +40,15 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
   Serial.print(", length = ");
   Serial.println(encryptedMessageLength);
 
-  LoRa.endPacket();
+  myLoRa.endPacket();
   delay(2000);
-  LoRa.sleep();
+  myLoRa.sleep();
 }
 #endif
 
 #ifdef ENABLE_DISPLAY
-// #define DISPLAY_TYPE_LCD_042 true
-#define DISPLAY_TYPE_ST7735_128_160 true
+// #define DISPLAY_TYPE_LCD_042
+#define DISPLAY_TYPE_ST7735_128_160
 
 #ifdef DISPLAY_TYPE_LCD_042
 #include <U8g2lib.h>
@@ -261,6 +264,36 @@ void setup() {
 
   setClock();  
 
+#ifdef ENABLE_LORA
+  // SPIClass spi(FSPI);
+  // myLoRa.setSPI(spi);
+  // spi.begin(sck, miso, mosi, ss);
+  // MISO;
+  // MOSI;
+  // SCK;
+  // SS;
+
+  // myLoRa.setPins(ss, reset, dio0);
+  myLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
+
+  if (!myLoRa.begin(912900000)) {
+    Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
+    delay(60000);
+    Serial.println("Restarting!");
+    ESP.restart();
+    // while (1);
+  }
+
+  myLoRa.setSpreadingFactor(10);
+  myLoRa.setSignalBandwidth(125000);
+  myLoRa.setCodingRate4(5);
+  myLoRa.setPreambleLength(8);
+  myLoRa.setSyncWord(0x12);
+  myLoRa.enableCrc();
+
+  loRaCrypto = new LoRaCrypto(&encryptionCredentials);
+#endif
+
   BaseType_t xReturned;
   TaskHandle_t xHandle = NULL;
 
@@ -277,27 +310,6 @@ void setup() {
       /* The task was created.  Use the task's handle to delete the task. */
       // vTaskDelete( xHandle );
   }
-
-#ifdef ENABLE_LORA
-  // LoRa.setPins(ss, reset, dio0);
-  LoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
-
-  if (!LoRa.begin(912900000)) {
-    Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
-    delay(60000);
-    ESP.restart();
-    // while (1);
-  }
-
-  LoRa.setSpreadingFactor(10);
-  LoRa.setSignalBandwidth(125000);
-  LoRa.setCodingRate4(5);
-  LoRa.setPreambleLength(8);
-  LoRa.setSyncWord(0x12);
-  LoRa.enableCrc();
-
-  loRaCrypto = new LoRaCrypto(&encryptionCredentials);
-#endif
 }
 
 void loop() {
