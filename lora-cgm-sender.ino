@@ -11,8 +11,8 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
-// #define ENABLE_LORA
-#define ENABLE_DISPLAY
+#define ENABLE_LORA
+// #define ENABLE_DISPLAY
 
 #ifdef ENABLE_LORA
 LoRaCrypto* loRaCrypto;
@@ -68,7 +68,7 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
 #define SDA_PIN 5
 #define SCL_PIN 6
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
-#else ifdef DISPLAY_TYPE_ST7735_128_160
+#elif defined(DISPLAY_TYPE_ST7735_128_160)
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
@@ -155,8 +155,21 @@ bool callApi(const char* endpoint, bool performLogin, JsonDocument* doc) {
 
 long httpsTaskHighWaterMark = LONG_MAX;
 char displayBuffer[32];
-long oldMgPerDl = -1;
+volatile long oldMgPerDl = -1;
 void vHttpsTask(void* pvParameters) {
+#ifdef DISPLAY_TYPE_LCD_042
+  Wire.begin(SDA_PIN, SCL_PIN);
+  u8g2.begin();
+#elif defined(DISPLAY_TYPE_ST7735_128_160)
+  tft.init();
+  tft.setRotation(1);
+  tft.fillScreen(TFT_BLACK);
+  tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
+  tft.setCursor(0, 4, 4);
+  tft.setTextColor(TFT_GREEN);
+  tft.println(" Waiting...");
+#endif
+
   while (true) {
     JsonDocument doc;
 
@@ -190,7 +203,8 @@ void vHttpsTask(void* pvParameters) {
           sprintf(displayBuffer, "%d", mgPerDl);
           u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
           u8g2.sendBuffer();  // transfer internal memory to the display
-#else ifdef DISPLAY_TYPE_ST7735_128_160
+#elif defined(DISPLAY_TYPE_ST7735_128_160)
+          Serial.print("xyz0");
           uint32_t color;
           if ((mgPerDl < 70) ||
               (mgPerDl > 250)) {
@@ -202,24 +216,19 @@ void vHttpsTask(void* pvParameters) {
             color = TFT_GREEN;
           }
           sprintf(displayBuffer, " %d", mgPerDl);
+          Serial.print("xyz1");
           tft.fillScreen(TFT_BLACK);
+          Serial.print("xyz2");
           tft.drawRect(0, 0, tft.width(), tft.height(), color);
           tft.setCursor(0, 4, 4);
           tft.setTextColor(color);
           tft.setTextSize(3);
+          Serial.print("xyz8");
           tft.println(displayBuffer);
+          Serial.print("xyz9");
 #endif
 #endif
           oldMgPerDl = mgPerDl;
-
-#ifdef ENABLE_LORA
-          Serial.print("there0 = ");
-          Serial.println(uxTaskGetStackHighWaterMark(NULL));
-          byte temp = mgPerDl & 0xFF;
-          sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
-          Serial.print("there9 = ");
-          Serial.println(uxTaskGetStackHighWaterMark(NULL));
-#endif
         }
       }
     } else {
@@ -237,6 +246,7 @@ void vHttpsTask(void* pvParameters) {
   }
 }
 
+SPIClass spi(FSPI);
 void setup() {
   Serial.begin(9600);
   unsigned long baseMillis = millis();
@@ -248,19 +258,6 @@ void setup() {
   Serial.println();
   Serial.println();
   Serial.println();
-
-#ifdef DISPLAY_TYPE_LCD_042
-  Wire.begin(SDA_PIN, SCL_PIN);
-  u8g2.begin();
-#else ifdef DISPLAY_TYPE_ST7735_128_160
-  tft.init();
-  tft.setRotation(3);
-  tft.fillScreen(TFT_BLACK);
-  tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
-  tft.setCursor(0, 4, 4);
-  tft.setTextColor(TFT_GREEN);
-  tft.println(" Waiting...");
-#endif
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -281,13 +278,12 @@ void setup() {
 #ifdef ENABLE_LORA
   Serial.print("here0 = ");
   Serial.println(uxTaskGetStackHighWaterMark(NULL));
-  SPIClass spi(FSPI);
-  myLoRa.setSPI(spi);
   spi.begin(SCK, MISO, MOSI, SS);
-  // MISO;
-  // MOSI;
-  // SCK;
-  // SS;
+  myLoRa.setSPI(spi);
+  // // MISO;
+  // // MOSI;
+  // // SCK;
+  // // SS;
   Serial.print("here1 = ");
   Serial.println(uxTaskGetStackHighWaterMark(NULL));
 
@@ -314,24 +310,32 @@ void setup() {
   Serial.println(uxTaskGetStackHighWaterMark(NULL));
 #endif
 
-  BaseType_t xReturned;
-  TaskHandle_t xHandle = NULL;
+  // BaseType_t xReturned;
+  // TaskHandle_t xHandle = NULL;
 
-  #define STACK_SIZE 16384  // 16KB
-  xReturned = xTaskCreate(
-                  vHttpsTask,         /* Function that implements the task. */
-                  "HTTPS",           /* Text name for the task. */
-                  STACK_SIZE,        /* Stack size in words, not bytes. */
-                  NULL,              /* Parameter passed into the task. */
-                  tskIDLE_PRIORITY,  /* Priority at which the task is created. */
-                  &xHandle);         /* Used to pass out the created task's handle. */
+  // #define STACK_SIZE 16384  // 16KB
+  // xReturned = xTaskCreate(
+  //                 vHttpsTask,         /* Function that implements the task. */
+  //                 "HTTPS",           /* Text name for the task. */
+  //                 STACK_SIZE,        /* Stack size in words, not bytes. */
+  //                 NULL,              /* Parameter passed into the task. */
+  //                 tskIDLE_PRIORITY,  /* Priority at which the task is created. */
+  //                 &xHandle);         /* Used to pass out the created task's handle. */
 
-  if (xReturned == pdPASS) {
-      /* The task was created.  Use the task's handle to delete the task. */
-      // vTaskDelete( xHandle );
-  }
+  // if (xReturned == pdPASS) {
+  //     /* The task was created.  Use the task's handle to delete the task. */
+  //     // vTaskDelete( xHandle );
+  // }
 }
 
 void loop() {
-  vTaskDelay(1000);
+  vTaskDelay(10000);
+#ifdef ENABLE_LORA
+  Serial.print("there0 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
+  byte temp = 0xFF;
+  sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
+  Serial.print("there9 = ");
+  Serial.println(uxTaskGetStackHighWaterMark(NULL));
+#endif
 }
