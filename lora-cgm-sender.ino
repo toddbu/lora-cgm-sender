@@ -25,21 +25,13 @@ LoRaClass myLoRa;
 // #define myLoRa LoRa
 
 void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
-  Serial.print("there0.3 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   myLoRa.idle();
-  Serial.print("there0.6 = ");
   myLoRa.beginPacket();
 
-  Serial.print("there1 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   byte encryptedMessage[255];
   uint encryptedMessageLength;
   uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, 1, messageType, data, dataLength);
   myLoRa.write(encryptedMessage, encryptedMessageLength);
-
-  Serial.print("there2 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 
   Serial.print("Sending packet: ");
   Serial.print(counter);
@@ -48,13 +40,9 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
   Serial.print(", length = ");
   Serial.println(encryptedMessageLength);
 
-  Serial.print("there3 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   myLoRa.endPacket();
   delay(2000);
   myLoRa.sleep();
-  Serial.print("there4 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 }
 #endif
 
@@ -89,7 +77,7 @@ void setClock() {
 
   Serial.println();
   struct tm timeinfo;
-  gmtime_r(&nowSecs, &timeinfo);
+  gmtime_r((const time_t *) &nowSecs, &timeinfo);
   Serial.print("Current time: ");
   Serial.print(asctime(&timeinfo));
 }
@@ -162,7 +150,7 @@ void vHttpsTask(void* pvParameters) {
   u8g2.begin();
 #elif defined(DISPLAY_TYPE_ST7735_128_160)
   tft.init();
-  tft.setRotation(1);
+  tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
   tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setCursor(0, 4, 4);
@@ -179,7 +167,7 @@ void vHttpsTask(void* pvParameters) {
         tokenExpires = (long) doc["data"]["authTicket"]["expires"];
 
         struct tm timeinfo;
-        gmtime_r(&tokenExpires, &timeinfo);
+        gmtime_r((const time_t*) &tokenExpires, &timeinfo);
         Serial.print("Auth token expires at ");
         Serial.println(asctime(&timeinfo));
       }
@@ -204,7 +192,6 @@ void vHttpsTask(void* pvParameters) {
           u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
           u8g2.sendBuffer();  // transfer internal memory to the display
 #elif defined(DISPLAY_TYPE_ST7735_128_160)
-          Serial.print("xyz0");
           uint32_t color;
           if ((mgPerDl < 70) ||
               (mgPerDl > 250)) {
@@ -216,16 +203,12 @@ void vHttpsTask(void* pvParameters) {
             color = TFT_GREEN;
           }
           sprintf(displayBuffer, " %d", mgPerDl);
-          Serial.print("xyz1");
           tft.fillScreen(TFT_BLACK);
-          Serial.print("xyz2");
           tft.drawRect(0, 0, tft.width(), tft.height(), color);
           tft.setCursor(0, 4, 4);
           tft.setTextColor(color);
           tft.setTextSize(3);
-          Serial.print("xyz8");
           tft.println(displayBuffer);
-          Serial.print("xyz9");
 #endif
 #endif
           oldMgPerDl = mgPerDl;
@@ -276,17 +259,13 @@ void setup() {
   setClock();  
 
 #ifdef ENABLE_LORA
-  Serial.print("here0 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   spi2.begin(SCK, MISO, MOSI, SS);
   myLoRa.setSPI(spi2);
   // // MISO;
   // // MOSI;
   // // SCK;
   // // SS;
-  Serial.print("here1 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
-
+  
   // myLoRa.setPins(ss, reset, dio0);
   myLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
 
@@ -306,8 +285,6 @@ void setup() {
   myLoRa.enableCrc();
 
   loRaCrypto = new LoRaCrypto(&encryptionCredentials);
-  Serial.print("here9 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 #endif
 
   BaseType_t xReturned;
@@ -331,11 +308,7 @@ void setup() {
 void loop() {
   vTaskDelay(10000);
 #ifdef ENABLE_LORA
-  Serial.print("there0 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
   byte temp = 0xFF;
   sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
-  Serial.print("there9 = ");
-  Serial.println(uxTaskGetStackHighWaterMark(NULL));
 #endif
 }
