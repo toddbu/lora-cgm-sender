@@ -246,7 +246,7 @@ void vHttpsTask(void* pvParameters) {
   }
 }
 
-SPIClass spi(FSPI);
+SPIClass spi2(FSPI);
 void setup() {
   Serial.begin(9600);
   unsigned long baseMillis = millis();
@@ -278,8 +278,8 @@ void setup() {
 #ifdef ENABLE_LORA
   Serial.print("here0 = ");
   Serial.println(uxTaskGetStackHighWaterMark(NULL));
-  spi.begin(SCK, MISO, MOSI, SS);
-  myLoRa.setSPI(spi);
+  spi2.begin(SCK, MISO, MOSI, SS);
+  myLoRa.setSPI(spi2);
   // // MISO;
   // // MOSI;
   // // SCK;
@@ -310,22 +310,22 @@ void setup() {
   Serial.println(uxTaskGetStackHighWaterMark(NULL));
 #endif
 
-  // BaseType_t xReturned;
-  // TaskHandle_t xHandle = NULL;
+  BaseType_t xReturned;
+  TaskHandle_t xHandle = NULL;
 
-  // #define STACK_SIZE 16384  // 16KB
-  // xReturned = xTaskCreate(
-  //                 vHttpsTask,         /* Function that implements the task. */
-  //                 "HTTPS",           /* Text name for the task. */
-  //                 STACK_SIZE,        /* Stack size in words, not bytes. */
-  //                 NULL,              /* Parameter passed into the task. */
-  //                 tskIDLE_PRIORITY,  /* Priority at which the task is created. */
-  //                 &xHandle);         /* Used to pass out the created task's handle. */
+  #define STACK_SIZE 16384  // 16KB
+  xReturned = xTaskCreate(
+                  vHttpsTask,         /* Function that implements the task. */
+                  "HTTPS",           /* Text name for the task. */
+                  STACK_SIZE,        /* Stack size in words, not bytes. */
+                  NULL,              /* Parameter passed into the task. */
+                  tskIDLE_PRIORITY,  /* Priority at which the task is created. */
+                  &xHandle);         /* Used to pass out the created task's handle. */
 
-  // if (xReturned == pdPASS) {
-  //     /* The task was created.  Use the task's handle to delete the task. */
-  //     // vTaskDelete( xHandle );
-  // }
+  if (xReturned == pdPASS) {
+      /* The task was created.  Use the task's handle to delete the task. */
+      // vTaskDelete( xHandle );
+  }
 }
 
 void loop() {
