@@ -11,8 +11,8 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
-#define ENABLE_LORA
-// #define ENABLE_DISPLAY
+// #define ENABLE_LORA
+#define ENABLE_DISPLAY
 
 #ifdef ENABLE_LORA
 LoRaCrypto* loRaCrypto;
@@ -21,17 +21,17 @@ enum MESSAGE_TYPE {
   messageTypeHealth = 1
 };
 
-LoRaClass myLoRa;
-// #define myLoRa LoRa
+LoRaClass FpsiLoRa;
+// #define FpsiLoRa LoRa
 
 void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
-  myLoRa.idle();
-  myLoRa.beginPacket();
+  FpsiLoRa.idle();
+  FpsiLoRa.beginPacket();
 
   byte encryptedMessage[255];
   uint encryptedMessageLength;
   uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, 1, messageType, data, dataLength);
-  myLoRa.write(encryptedMessage, encryptedMessageLength);
+  FpsiLoRa.write(encryptedMessage, encryptedMessageLength);
 
   Serial.print("Sending packet: ");
   Serial.print(counter);
@@ -40,9 +40,9 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
   Serial.print(", length = ");
   Serial.println(encryptedMessageLength);
 
-  myLoRa.endPacket();
+  FpsiLoRa.endPacket();
   delay(2000);
-  myLoRa.sleep();
+  FpsiLoRa.sleep();
 }
 #endif
 
@@ -150,6 +150,7 @@ void vHttpsTask(void* pvParameters) {
   u8g2.begin();
 #elif defined(DISPLAY_TYPE_ST7735_128_160)
   tft.init();
+  // tft.init(INITR_BLACKTAB);
   tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
   tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
@@ -162,6 +163,7 @@ void vHttpsTask(void* pvParameters) {
     JsonDocument doc;
 
     if (time(nullptr) > tokenExpires) {
+      Serial.println("xl0");
       if (callApi("https://api.libreview.io/llu/auth/login", true, &doc)) {
         token = (const char*) doc["data"]["authTicket"]["token"];
         tokenExpires = (long) doc["data"]["authTicket"]["expires"];
@@ -171,9 +173,11 @@ void vHttpsTask(void* pvParameters) {
         Serial.print("Auth token expires at ");
         Serial.println(asctime(&timeinfo));
       }
+      Serial.println("xl9");
     }
 
     if (time(nullptr) < tokenExpires) {
+      Serial.println("here0");
       if (callApi("https://api.libreview.io/llu/connections", false, &doc)) {
         JsonObject connection = doc["data"][0];
         long mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
@@ -183,6 +187,7 @@ void vHttpsTask(void* pvParameters) {
         Serial.print(" mg/dL at ");
         Serial.println(timestamp);
 
+      Serial.println("here1");
         if (mgPerDl != oldMgPerDl) {
 #ifdef ENABLE_DISPLAY
 #ifdef DISPLAY_TYPE_LCD_042
@@ -203,7 +208,9 @@ void vHttpsTask(void* pvParameters) {
             color = TFT_GREEN;
           }
           sprintf(displayBuffer, " %d", mgPerDl);
+          Serial.println("here2");
           tft.fillScreen(TFT_BLACK);
+          Serial.println("here3");
           tft.drawRect(0, 0, tft.width(), tft.height(), color);
           tft.setCursor(0, 4, 4);
           tft.setTextColor(color);
@@ -260,16 +267,16 @@ void setup() {
 
 #ifdef ENABLE_LORA
   spi2.begin(SCK, MISO, MOSI, SS);
-  myLoRa.setSPI(spi2);
+  FpsiLoRa.setSPI(spi2);
   // // MISO;
   // // MOSI;
   // // SCK;
   // // SS;
   
-  // myLoRa.setPins(ss, reset, dio0);
-  myLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
+  // FpsiLoRa.setPins(ss, reset, dio0);
+  FpsiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
 
-  if (!myLoRa.begin(912900000)) {
+  if (!FpsiLoRa.begin(912900000)) {
     Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
     delay(60000);
     Serial.println("Restarting!");
@@ -277,12 +284,12 @@ void setup() {
     // while (1);
   }
 
-  myLoRa.setSpreadingFactor(10);
-  myLoRa.setSignalBandwidth(125000);
-  myLoRa.setCodingRate4(5);
-  myLoRa.setPreambleLength(8);
-  myLoRa.setSyncWord(0x12);
-  myLoRa.enableCrc();
+  FpsiLoRa.setSpreadingFactor(10);
+  FpsiLoRa.setSignalBandwidth(125000);
+  FpsiLoRa.setCodingRate4(5);
+  FpsiLoRa.setPreambleLength(8);
+  FpsiLoRa.setSyncWord(0x12);
+  FpsiLoRa.enableCrc();
 
   loRaCrypto = new LoRaCrypto(&encryptionCredentials);
 #endif
