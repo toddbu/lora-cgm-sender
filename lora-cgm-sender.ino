@@ -11,8 +11,8 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
-// #define ENABLE_LORA
-#define ENABLE_DISPLAY
+#define ENABLE_LORA
+// #define ENABLE_DISPLAY
 
 #ifdef ENABLE_LORA
 LoRaCrypto* loRaCrypto;
@@ -143,6 +143,7 @@ bool callApi(const char* endpoint, bool performLogin, JsonDocument* doc) {
 
 long httpsTaskHighWaterMark = LONG_MAX;
 char displayBuffer[32];
+long mgPerDl = -1;
 volatile long oldMgPerDl = -1;
 void vHttpsTask(void* pvParameters) {
 #ifdef DISPLAY_TYPE_LCD_042
@@ -180,7 +181,7 @@ void vHttpsTask(void* pvParameters) {
       Serial.println("here0");
       if (callApi("https://api.libreview.io/llu/connections", false, &doc)) {
         JsonObject connection = doc["data"][0];
-        long mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
+        mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
         const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
         Serial.print("Glucose level = ");
         Serial.print(mgPerDl);
@@ -315,7 +316,9 @@ void setup() {
 void loop() {
   vTaskDelay(10000);
 #ifdef ENABLE_LORA
-  byte temp = 0xFF;
-  sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
+  if (mgPerDl > 0) {
+    byte temp = mgPerDl & 0xFF;
+    sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
+  }
 #endif
 }
