@@ -21,17 +21,17 @@ enum MESSAGE_TYPE {
   messageTypeHealth = 1
 };
 
-LoRaClass FpsiLoRa;
-// #define FpsiLoRa LoRa
+LoRaClass FspiLoRa;
+// #define FspiLoRa LoRa
 
 void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
-  FpsiLoRa.idle();
-  FpsiLoRa.beginPacket();
+  FspiLoRa.idle();
+  FspiLoRa.beginPacket();
 
   byte encryptedMessage[255];
   uint encryptedMessageLength;
   uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, 1, messageType, data, dataLength);
-  FpsiLoRa.write(encryptedMessage, encryptedMessageLength);
+  FspiLoRa.write(encryptedMessage, encryptedMessageLength);
 
   Serial.print("Sending packet: ");
   Serial.print(counter);
@@ -40,9 +40,9 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
   Serial.print(", length = ");
   Serial.println(encryptedMessageLength);
 
-  FpsiLoRa.endPacket();
+  FspiLoRa.endPacket();
   delay(2000);
-  FpsiLoRa.sleep();
+  FspiLoRa.sleep();
 }
 #endif
 
@@ -143,8 +143,8 @@ bool callApi(const char* endpoint, bool performLogin, JsonDocument* doc) {
 
 long httpsTaskHighWaterMark = LONG_MAX;
 char displayBuffer[32];
-long mgPerDl = -1;
-volatile long oldMgPerDl = -1;
+volatile long mgPerDl = -1;
+long oldDisplayMgPerDl = -1;
 void vHttpsTask(void* pvParameters) {
 #ifdef DISPLAY_TYPE_LCD_042
   Wire.begin(SDA_PIN, SCL_PIN);
@@ -164,7 +164,6 @@ void vHttpsTask(void* pvParameters) {
     JsonDocument doc;
 
     if (time(nullptr) > tokenExpires) {
-      Serial.println("xl0");
       if (callApi("https://api.libreview.io/llu/auth/login", true, &doc)) {
         token = (const char*) doc["data"]["authTicket"]["token"];
         tokenExpires = (long) doc["data"]["authTicket"]["expires"];
@@ -174,11 +173,9 @@ void vHttpsTask(void* pvParameters) {
         Serial.print("Auth token expires at ");
         Serial.println(asctime(&timeinfo));
       }
-      Serial.println("xl9");
     }
 
     if (time(nullptr) < tokenExpires) {
-      Serial.println("here0");
       if (callApi("https://api.libreview.io/llu/connections", false, &doc)) {
         JsonObject connection = doc["data"][0];
         mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
@@ -188,8 +185,7 @@ void vHttpsTask(void* pvParameters) {
         Serial.print(" mg/dL at ");
         Serial.println(timestamp);
 
-      Serial.println("here1");
-        if (mgPerDl != oldMgPerDl) {
+        if (mgPerDl != oldDisplayMgPerDl) {
 #ifdef ENABLE_DISPLAY
 #ifdef DISPLAY_TYPE_LCD_042
           u8g2.clearBuffer();  // clear the internal memory
@@ -209,9 +205,7 @@ void vHttpsTask(void* pvParameters) {
             color = TFT_GREEN;
           }
           sprintf(displayBuffer, " %d", mgPerDl);
-          Serial.println("here2");
           tft.fillScreen(TFT_BLACK);
-          Serial.println("here3");
           tft.drawRect(0, 0, tft.width(), tft.height(), color);
           tft.setCursor(0, 4, 4);
           tft.setTextColor(color);
@@ -219,7 +213,7 @@ void vHttpsTask(void* pvParameters) {
           tft.println(displayBuffer);
 #endif
 #endif
-          oldMgPerDl = mgPerDl;
+          oldDisplayMgPerDl = mgPerDl;
         }
       }
     } else {
@@ -237,7 +231,9 @@ void vHttpsTask(void* pvParameters) {
   }
 }
 
+#ifdef ENABLE_LORA
 SPIClass spi2(FSPI);
+#endif
 void setup() {
   Serial.begin(9600);
   unsigned long baseMillis = millis();
@@ -269,16 +265,17 @@ void setup() {
 #ifdef ENABLE_LORA
   // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
   spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
-  FpsiLoRa.setSPI(spi2);
+  FspiLoRa.setSPI(spi2);
   // MISO;
   // MOSI;
   // SCK;
   // SS;
   
-  // FpsiLoRa.setPins(ss, reset, dio0);
-  FpsiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W
+  // FspiLoRa.setPins(ss, reset, dio0);
+  // FspiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W (C3)
+  FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
 
-  if (!FpsiLoRa.begin(912900000)) {
+  if (!FspiLoRa.begin(912900000)) {
     Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
     delay(60000);
     Serial.println("Restarting!");
@@ -286,12 +283,12 @@ void setup() {
     // while (1);
   }
 
-  FpsiLoRa.setSpreadingFactor(10);
-  FpsiLoRa.setSignalBandwidth(125000);
-  FpsiLoRa.setCodingRate4(5);
-  FpsiLoRa.setPreambleLength(8);
-  FpsiLoRa.setSyncWord(0x12);
-  FpsiLoRa.enableCrc();
+  FspiLoRa.setSpreadingFactor(10);
+  FspiLoRa.setSignalBandwidth(125000);
+  FspiLoRa.setCodingRate4(5);
+  FspiLoRa.setPreambleLength(8);
+  FspiLoRa.setSyncWord(0x12);
+  FspiLoRa.enableCrc();
 
   loRaCrypto = new LoRaCrypto(&encryptionCredentials);
 #endif
@@ -301,28 +298,30 @@ void setup() {
 
   #define STACK_SIZE 16384  // 16KB
   xReturned = xTaskCreate(
-                  vHttpsTask,         /* Function that implements the task. */
-                  "HTTPS",           /* Text name for the task. */
-                  STACK_SIZE,        /* Stack size in words, not bytes. */
-                  NULL,              /* Parameter passed into the task. */
-                  tskIDLE_PRIORITY,  /* Priority at which the task is created. */
-                  &xHandle);         /* Used to pass out the created task's handle. */
+    vHttpsTask,         /* Function that implements the task. */
+    "HTTPS",           /* Text name for the task. */
+    STACK_SIZE,        /* Stack size in words, not bytes. */
+    NULL,              /* Parameter passed into the task. */
+    tskIDLE_PRIORITY,  /* Priority at which the task is created. */
+    &xHandle);         /* Used to pass out the created task's handle. */
 
-  if (xReturned == pdPASS) {
-      /* The task was created.  Use the task's handle to delete the task. */
-      // vTaskDelete( xHandle );
+  if (xReturned != pdPASS) {
+    Serial.println("HttpsTaks could not be created");
   }
 }
 
+long oldLoRaMgPerDl = -1;
+uint loRaGuaranteeTimer = millis();
 void loop() {
-  vTaskDelay(10000);
-  Serial.println("foo0");
 #ifdef ENABLE_LORA
-  // if (mgPerDl > 0) {
-    Serial.println("foo1");
+  if ((mgPerDl != oldLoRaMgPerDl) ||
+      ((millis() - loRaGuaranteeTimer) > 10000)) {
     byte temp = mgPerDl & 0xFF;
     sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
-    Serial.println("foo2");
-  // }
+    oldLoRaMgPerDl = mgPerDl;
+    loRaGuaranteeTimer = millis();
+  }
 #endif
+
+  vTaskDelay(100);
 }
