@@ -12,7 +12,7 @@
 #include <LoRaCryptoCreds.h>
 
 #define ENABLE_LORA
-// #define ENABLE_DISPLAY
+#define ENABLE_DISPLAY
 
 #ifdef ENABLE_LORA
 LoRaCrypto* loRaCrypto;
@@ -267,15 +267,16 @@ void setup() {
   setClock();  
 
 #ifdef ENABLE_LORA
-  spi2.begin(SCK, MISO, MOSI, SS);
+  // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
+  spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
   FpsiLoRa.setSPI(spi2);
-  // // MISO;
-  // // MOSI;
-  // // SCK;
-  // // SS;
+  // MISO;
+  // MOSI;
+  // SCK;
+  // SS;
   
   // FpsiLoRa.setPins(ss, reset, dio0);
-  FpsiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W
+  FpsiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W
 
   if (!FpsiLoRa.begin(912900000)) {
     Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
@@ -315,10 +316,13 @@ void setup() {
 
 void loop() {
   vTaskDelay(10000);
+  Serial.println("foo0");
 #ifdef ENABLE_LORA
-  if (mgPerDl > 0) {
+  // if (mgPerDl > 0) {
+    Serial.println("foo1");
     byte temp = mgPerDl & 0xFF;
     sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
-  }
+    Serial.println("foo2");
+  // }
 #endif
 }
