@@ -198,8 +198,8 @@ void vHttpsTask(void* pvParameters) {
           if ((mgPerDl < 70) ||
               (mgPerDl > 250)) {
             color = TFT_RED;
-          } else if ((mgPerDl >= 70 && mgPerDl <= 80) ||
-                     (mgPerDl >= 181 && mgPerDl <= 250)) {
+          } else if ((mgPerDl >= 70 && mgPerDl < 80) ||
+                     (mgPerDl > 150 && mgPerDl <= 250)) {
             color = TFT_YELLOW;
           } else {
             color = TFT_GREEN;
@@ -302,7 +302,7 @@ void setup() {
     "HTTPS",           /* Text name for the task. */
     STACK_SIZE,        /* Stack size in words, not bytes. */
     NULL,              /* Parameter passed into the task. */
-    tskIDLE_PRIORITY,  /* Priority at which the task is created. */
+    5, // tskIDLE_PRIORITY,  /* Priority at which the task is created. */
     &xHandle);         /* Used to pass out the created task's handle. */
 
   if (xReturned != pdPASS) {
@@ -310,14 +310,17 @@ void setup() {
   }
 }
 
+struct cgm_struct {
+  uint16_t mgPerDl;
+};
 long oldLoRaMgPerDl = -1;
 uint loRaGuaranteeTimer = millis();
 void loop() {
 #ifdef ENABLE_LORA
   if ((mgPerDl != oldLoRaMgPerDl) ||
-      ((millis() - loRaGuaranteeTimer) > 10000)) {
-    byte temp = mgPerDl & 0xFF;
-    sendPacket(messageTypeHealth, (byte*) &temp, sizeof(temp));
+      ((millis() - loRaGuaranteeTimer) > 300000)) {
+    struct cgm_struct cgm = { mgPerDl & 0xFFFF };
+    sendPacket(messageTypeHealth, (byte*) &cgm, sizeof(cgm));
     oldLoRaMgPerDl = mgPerDl;
     loRaGuaranteeTimer = millis();
   }
