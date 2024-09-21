@@ -12,25 +12,24 @@
 #include <LoRaCryptoCreds.h>
 
 #define ENABLE_LORA
+#define ENABLE_LORA_SENDER
+// #define ENABLE_LORA_RECEIVER
+#define DEVICE_ID 33
 #define ENABLE_DISPLAY
 
-#ifdef ENABLE_LORA
+#if defined(ENABLE_LORA)
 LoRaCrypto* loRaCrypto;
-
-enum MESSAGE_TYPE {
-  messageTypeHealth = 1
-};
 
 LoRaClass FspiLoRa;
 // #define FspiLoRa LoRa
 
-void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
+void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   FspiLoRa.idle();
   FspiLoRa.beginPacket();
 
   byte encryptedMessage[255];
   uint encryptedMessageLength;
-  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, 1, messageType, data, dataLength);
+  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, DEVICE_ID, messageType, data, dataLength);
   FspiLoRa.write(encryptedMessage, encryptedMessageLength);
 
   Serial.print("Sending packet: ");
@@ -46,17 +45,19 @@ void sendPacket(enum MESSAGE_TYPE messageType, byte* data, uint dataLength) {
 }
 #endif
 
-#ifdef ENABLE_DISPLAY
+#if defined(ENABLE_DISPLAY)
 // #define DISPLAY_TYPE_LCD_042
-#define DISPLAY_TYPE_ST7735_128_160
+#define DISPLAY_TYPE_TFT
+// #define DISPLAY_TYPE_ST7735_128_160
+#define DISPLAY_TYPE_ILI9488_480_320
 
-#ifdef DISPLAY_TYPE_LCD_042
+#if defined(DISPLAY_TYPE_LCD_042)
 #include <U8g2lib.h>
 #include <Wire.h>
 #define SDA_PIN 5
 #define SCL_PIN 6
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
-#elif defined(DISPLAY_TYPE_ST7735_128_160)
+#elif defined(DISPLAY_TYPE_TFT)
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
@@ -146,10 +147,10 @@ char displayBuffer[32];
 volatile long mgPerDl = -1;
 long oldDisplayMgPerDl = -1;
 void vHttpsTask(void* pvParameters) {
-#ifdef DISPLAY_TYPE_LCD_042
+#if defined(DISPLAY_TYPE_LCD_042)
   Wire.begin(SDA_PIN, SCL_PIN);
   u8g2.begin();
-#elif defined(DISPLAY_TYPE_ST7735_128_160)
+#elif defined(DISPLAY_TYPE_TFT)
   tft.init();
   // tft.init(INITR_BLACKTAB);
   tft.setRotation(3);
@@ -186,14 +187,14 @@ void vHttpsTask(void* pvParameters) {
         Serial.println(timestamp);
 
         if (mgPerDl != oldDisplayMgPerDl) {
-#ifdef ENABLE_DISPLAY
-#ifdef DISPLAY_TYPE_LCD_042
+#if defined(ENABLE_DISPLAY)
+#if defined(DISPLAY_TYPE_LCD_042)
           u8g2.clearBuffer();  // clear the internal memory
           u8g2.setFont(u8g_font_9x18);  // choose a suitable font
           sprintf(displayBuffer, "%d", mgPerDl);
           u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
           u8g2.sendBuffer();  // transfer internal memory to the display
-#elif defined(DISPLAY_TYPE_ST7735_128_160)
+#elif defined(DISPLAY_TYPE_TFT)
           uint32_t color;
           if ((mgPerDl < 70) ||
               (mgPerDl > 250)) {
@@ -209,7 +210,11 @@ void vHttpsTask(void* pvParameters) {
           tft.drawRect(0, 0, tft.width(), tft.height(), color);
           tft.setCursor(0, 4, 4);
           tft.setTextColor(color);
+#if defined(DISPLAY_TYPE_ST7735_128_160)
           tft.setTextSize(3);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+          tft.setTextSize(6);
+#endif
           tft.println(displayBuffer);
 #endif
 #endif
@@ -231,10 +236,14 @@ void vHttpsTask(void* pvParameters) {
   }
 }
 
-#ifdef ENABLE_LORA
+#if defined(ENABLE_LORA)
 SPIClass spi2(FSPI);
 #endif
 void setup() {
+  // Turn on backlight LED for ILI9488
+  pinMode(13, OUTPUT);
+  digitalWrite(13, HIGH);
+
   Serial.begin(9600);
   unsigned long baseMillis = millis();
   while (!Serial &&
@@ -262,7 +271,7 @@ void setup() {
 
   setClock();  
 
-#ifdef ENABLE_LORA
+#if defined(ENABLE_LORA)
   // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
   spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
   FspiLoRa.setSPI(spi2);
@@ -316,13 +325,70 @@ struct cgm_struct {
 long oldLoRaMgPerDl = -1;
 uint loRaGuaranteeTimer = millis();
 void loop() {
-#ifdef ENABLE_LORA
+#if defined(ENABLE_LORA_SENDER)
   if ((mgPerDl != oldLoRaMgPerDl) ||
       ((millis() - loRaGuaranteeTimer) > 300000)) {
     struct cgm_struct cgm = { mgPerDl & 0xFFFF };
-    sendPacket(messageTypeHealth, (byte*) &cgm, sizeof(cgm));
+    sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
     oldLoRaMgPerDl = mgPerDl;
     loRaGuaranteeTimer = millis();
+  }
+#endif
+
+#if defined(ENABLE_LORA_RECEIVER)
+  char printBuf[255];
+
+  // try to parse encrypted message
+  int encryptedMessageSize = LoRa.parsePacket();
+  if (!encryptedMessageSize) {
+    return;
+  }
+
+  // received an encrypted message
+  Serial.print("Received message, size = ");
+  Serial.print(encryptedMessageSize);
+  // print RSSI of message
+  Serial.print(" with RSSI ");
+  Serial.print(LoRa.packetRssi());
+
+  // read encrypted message
+  byte encryptedMessage[255];
+  uint encryptedMessageLength = 0;
+  while (LoRa.available()) {
+    encryptedMessage[encryptedMessageLength++] = LoRa.read();
+  }
+
+  byte data[encryptedMessageLength];
+  MessageMetadata messageMetadata;
+  uint decryptStatus = loRaCrypto->decrypt(data, encryptedMessage, encryptedMessageLength, &messageMetadata);
+  if (decryptStatus != LoRaCryptoDecryptErrors::DECRYPT_OK) {
+    char message[255];
+    loRaCrypto->decryptErrorMessage(decryptStatus, message);
+    Serial.print(" (");
+    Serial.print(message);
+    Serial.println(")");
+
+    return;
+  }
+
+  sprintf(printBuf, ", device id = %d, message type = %d, ", messageMetadata.deviceId, messageMetadata.type);
+  Serial.print(printBuf);
+
+  switch (messageMetadata.type) {
+    // case 0:
+    //   encryptedMessage[encryptedMessageLength] = '\0';
+    //   sprintf(printBuf, "\"%s\"", &encryptedMessage[1]);
+    //   Serial.println(printBuf);
+    //   break;
+
+    case 1:
+      sprintf(printBuf, "\"hello %d with hasMail = %d\"", messageMetadata.counter, data[0]);
+      Serial.println(printBuf);
+      break;
+
+    default:
+      sprintf(printBuf, "unknown message type %d", messageMetadata.type);
+      Serial.println(printBuf);
   }
 #endif
 
