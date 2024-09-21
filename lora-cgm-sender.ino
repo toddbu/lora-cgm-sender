@@ -13,7 +13,7 @@
 
 #define ENABLE_LORA
 #define ENABLE_LORA_SENDER
-// #define ENABLE_LORA_RECEIVER
+#define ENABLE_LORA_RECEIVER
 #define DEVICE_ID 33
 #define ENABLE_DISPLAY
 
@@ -24,7 +24,7 @@ LoRaClass FspiLoRa;
 // #define FspiLoRa LoRa
 
 void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
-  FspiLoRa.idle();
+  // FspiLoRa.idle();
   FspiLoRa.beginPacket();
 
   byte encryptedMessage[255];
@@ -40,8 +40,8 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   Serial.println(encryptedMessageLength);
 
   FspiLoRa.endPacket();
-  delay(2000);
-  FspiLoRa.sleep();
+  // delay(2000);
+  // FspiLoRa.sleep();
 }
 #endif
 
@@ -283,6 +283,7 @@ void setup() {
   // FspiLoRa.setPins(ss, reset, dio0);
   // FspiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W (C3)
   FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
+  pinMode(4, INPUT);
 
   if (!FspiLoRa.begin(912900000)) {
     Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
@@ -298,6 +299,8 @@ void setup() {
   FspiLoRa.setPreambleLength(8);
   FspiLoRa.setSyncWord(0x12);
   FspiLoRa.enableCrc();
+
+  FspiLoRa.idle();
 
   loRaCrypto = new LoRaCrypto(&encryptionCredentials);
 #endif
@@ -319,6 +322,10 @@ void setup() {
   }
 }
 
+void onReceive(int packetSize) {
+  Serial.println("onReceive");
+}
+
 struct cgm_struct {
   uint16_t mgPerDl;
 };
@@ -335,11 +342,14 @@ void loop() {
   }
 #endif
 
+  vTaskDelay(5000);
+
 #if defined(ENABLE_LORA_RECEIVER)
   char printBuf[255];
 
   // try to parse encrypted message
   int encryptedMessageSize = LoRa.parsePacket();
+  Serial.println(encryptedMessageSize);
   if (!encryptedMessageSize) {
     return;
   }
@@ -391,6 +401,4 @@ void loop() {
       Serial.println(printBuf);
   }
 #endif
-
-  vTaskDelay(100);
 }
