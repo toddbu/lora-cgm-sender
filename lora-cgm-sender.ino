@@ -331,6 +331,7 @@ struct cgm_struct {
 };
 long oldLoRaMgPerDl = -1;
 uint loRaGuaranteeTimer = millis();
+char oldTime[255] = {'\0'};
 void loop() {
 #if defined(ENABLE_LORA_SENDER)
   if ((mgPerDl != oldLoRaMgPerDl) ||
@@ -344,12 +345,38 @@ void loop() {
 
   vTaskDelay(5000);
 
-#if defined(ENABLE_LORA_RECEIVER)
   char printBuf[255];
+  time_t nowSecs = time(nullptr);
+  struct tm timeinfo;
+  gmtime_r((const time_t *) &nowSecs, &timeinfo);
+  Serial.print("Current time: ");
+  Serial.print(asctime(&timeinfo));
 
+  tft.setCursor(0, 160, 4);
+  tft.setTextColor(TFT_BLACK);
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+  tft.setTextSize(3);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+  tft.setTextSize(6);
+#endif
+  tft.println(oldTime);
+  strcpy(oldTime, printBuf);
+
+  sprintf(printBuf, " %02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+  // tft.fillScreen(TFT_BLACK);
+  tft.setCursor(0, 160, 4);
+  tft.setTextColor(TFT_GREEN);
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+  tft.setTextSize(3);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+  tft.setTextSize(6);
+#endif
+  tft.println(printBuf);
+
+#if defined(ENABLE_LORA_RECEIVER)
   // try to parse encrypted message
   int encryptedMessageSize = LoRa.parsePacket();
-  Serial.println(encryptedMessageSize);
+  // Serial.println(encryptedMessageSize);
   if (!encryptedMessageSize) {
     return;
   }
