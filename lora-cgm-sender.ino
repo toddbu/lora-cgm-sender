@@ -142,6 +142,16 @@ bool callApi(const char* endpoint, bool performLogin, JsonDocument* doc) {
   return true;
 }
 
+void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
+  float wd = 6.0;
+  float radius = wd / 2.0;
+
+  tft.drawWideLine(x + radius, y + radius, w - radius, y + radius, wd, color);
+  tft.drawWideLine(x + radius, y + radius, x + radius, h - radius, wd, color);
+  tft.drawWideLine(w - radius, y + radius, w - radius, h - radius, wd, color);
+  tft.drawWideLine(x + radius, h - radius, w - radius, h - radius, wd, color);
+}
+
 long httpsTaskHighWaterMark = LONG_MAX;
 char displayBuffer[32];
 volatile long mgPerDl = -1;
@@ -155,7 +165,7 @@ void vHttpsTask(void* pvParameters) {
   // tft.init(INITR_BLACKTAB);
   tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
-  tft.drawRect(0, 0, tft.width(), tft.height(), TFT_GREEN);
+  drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setCursor(0, 4, 4);
   tft.setTextColor(TFT_GREEN);
   tft.println(" Waiting...");
@@ -207,7 +217,7 @@ void vHttpsTask(void* pvParameters) {
           }
           sprintf(displayBuffer, " %d", mgPerDl);
           tft.fillScreen(TFT_BLACK);
-          tft.drawRect(0, 0, tft.width(), tft.height(), color);
+          drawBorder(0, 0, tft.width(), tft.height(), color);
           tft.setCursor(0, 4, 4);
           tft.setTextColor(color);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
@@ -362,7 +372,11 @@ void loop() {
   tft.println(oldTime);
   strcpy(oldTime, printBuf);
 
-  sprintf(printBuf, " %02d:%02d", timeinfo.tm_hour, timeinfo.tm_min);
+  int hour = timeinfo.tm_hour - 7;
+  if (hour < 0) {
+    hour += 24;
+  }
+  sprintf(printBuf, " %02d:%02d", hour, timeinfo.tm_min);
   // tft.fillScreen(TFT_BLACK);
   tft.setCursor(0, 160, 4);
   tft.setTextColor(TFT_GREEN);
