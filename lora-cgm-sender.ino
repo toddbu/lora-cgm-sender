@@ -13,7 +13,7 @@
 
 #define ENABLE_LORA
 #define ENABLE_LORA_SENDER
-#define ENABLE_LORA_RECEIVER
+// #define ENABLE_LORA_RECEIVER
 #define DEVICE_ID 33
 #define ENABLE_DISPLAY
 
@@ -72,7 +72,7 @@ void setClock() {
   while (nowSecs < 8 * 3600 * 2) {
     delay(500);
     Serial.print(F("."));
-    yield();
+    taskYIELD();
     nowSecs = time(nullptr);
   }
 
@@ -153,24 +153,8 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 }
 
 long httpsTaskHighWaterMark = LONG_MAX;
-char displayBuffer[32];
 volatile long mgPerDl = -1;
-long oldDisplayMgPerDl = -1;
 void vHttpsTask(void* pvParameters) {
-#if defined(DISPLAY_TYPE_LCD_042)
-  Wire.begin(SDA_PIN, SCL_PIN);
-  u8g2.begin();
-#elif defined(DISPLAY_TYPE_TFT)
-  tft.init();
-  // tft.init(INITR_BLACKTAB);
-  tft.setRotation(3);
-  tft.fillScreen(TFT_BLACK);
-  drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
-  tft.setCursor(0, 4, 4);
-  tft.setTextColor(TFT_GREEN);
-  tft.println(" Waiting...");
-#endif
-
   while (true) {
     JsonDocument doc;
 
@@ -195,41 +179,6 @@ void vHttpsTask(void* pvParameters) {
         Serial.print(mgPerDl);
         Serial.print(" mg/dL at ");
         Serial.println(timestamp);
-
-        if (mgPerDl != oldDisplayMgPerDl) {
-#if defined(ENABLE_DISPLAY)
-#if defined(DISPLAY_TYPE_LCD_042)
-          u8g2.clearBuffer();  // clear the internal memory
-          u8g2.setFont(u8g_font_9x18);  // choose a suitable font
-          sprintf(displayBuffer, "%d", mgPerDl);
-          u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
-          u8g2.sendBuffer();  // transfer internal memory to the display
-#elif defined(DISPLAY_TYPE_TFT)
-          uint32_t color;
-          if ((mgPerDl < 70) ||
-              (mgPerDl > 250)) {
-            color = TFT_RED;
-          } else if ((mgPerDl >= 70 && mgPerDl < 80) ||
-                     (mgPerDl > 150 && mgPerDl <= 250)) {
-            color = TFT_YELLOW;
-          } else {
-            color = TFT_GREEN;
-          }
-          sprintf(displayBuffer, " %d", mgPerDl);
-          tft.fillScreen(TFT_BLACK);
-          drawBorder(0, 0, tft.width(), tft.height(), color);
-          tft.setCursor(0, 4, 4);
-          tft.setTextColor(color);
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-          tft.setTextSize(3);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
-          tft.setTextSize(6);
-#endif
-          tft.println(displayBuffer);
-#endif
-#endif
-          oldDisplayMgPerDl = mgPerDl;
-        }
       }
     } else {
       Serial.println("Auth token is outdated!");
@@ -250,38 +199,38 @@ void vHttpsTask(void* pvParameters) {
 SPIClass spi2(FSPI);
 #endif
 void setup() {
+#if defined(ENABLE_DISPLAY)
+#if defined(DISPLAY_TYPE_LCD_042)
+  Wire.begin(SDA_PIN, SCL_PIN);
+  u8g2.begin();
+#elif defined(DISPLAY_TYPE_TFT)
+  tft.init();
+  // tft.init(INITR_BLACKTAB);
+  tft.setRotation(3);
+  tft.fillScreen(TFT_BLACK);
+  drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
+  tft.setCursor(4, 8, 4);
+  tft.setTextColor(TFT_GREEN);
+  tft.println(" Waiting...");
+#endif
+
   // Turn on backlight LED for ILI9488
   pinMode(13, OUTPUT);
   digitalWrite(13, HIGH);
+#endif
 
   Serial.begin(9600);
   unsigned long baseMillis = millis();
   while (!Serial &&
          ((millis() - baseMillis) < 5000)) {
-    delay(1000);
+    taskYIELD();
   }
 
   Serial.println();
   Serial.println();
   Serial.println();
 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  Serial.print("Connecting to Wi-Fi");
-  baseMillis = millis();
-  while ((WiFi.status() != WL_CONNECTED) &&
-         ((millis() - baseMillis) < 10000)) {
-    Serial.print(".");
-    delay(1000);
-  }
-  Serial.println();
-  Serial.print("Connected with IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.println();
-
-  setClock();  
-
-#if defined(ENABLE_LORA)
+  #if defined(ENABLE_LORA)
   // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
   spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
   FspiLoRa.setSPI(spi2);
@@ -315,6 +264,23 @@ void setup() {
   loRaCrypto = new LoRaCrypto(&encryptionCredentials);
 #endif
 
+WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  Serial.print("Connecting to Wi-Fi");
+  baseMillis = millis();
+  while ((WiFi.status() != WL_CONNECTED) &&
+         ((millis() - baseMillis) < 10000)) {
+    Serial.print(".");
+    delay(1000);
+    taskYIELD();
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  setClock();  
+
   BaseType_t xReturned;
   TaskHandle_t xHandle = NULL;
 
@@ -339,53 +305,90 @@ void onReceive(int packetSize) {
 struct cgm_struct {
   uint16_t mgPerDl;
 };
+
 long oldLoRaMgPerDl = -1;
+#if defined(ENABLE_LORA_SENDER)
 uint loRaGuaranteeTimer = millis();
+#endif
+#if defined(ENABLE_DISPLAY)
 char oldTime[255] = {'\0'};
+#endif
 void loop() {
 #if defined(ENABLE_LORA_SENDER)
   if ((mgPerDl != oldLoRaMgPerDl) ||
       ((millis() - loRaGuaranteeTimer) > 300000)) {
     struct cgm_struct cgm = { mgPerDl & 0xFFFF };
     sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
-    oldLoRaMgPerDl = mgPerDl;
     loRaGuaranteeTimer = millis();
   }
 #endif
 
-  vTaskDelay(5000);
+#if defined(ENABLE_DISPLAY)
+  char displayBuffer[255];
 
-  char printBuf[255];
-  time_t nowSecs = time(nullptr);
-  struct tm timeinfo;
-  gmtime_r((const time_t *) &nowSecs, &timeinfo);
-  Serial.print("Current time: ");
-  Serial.print(asctime(&timeinfo));
-
-  tft.setCursor(0, 160, 4);
-  tft.setTextColor(TFT_BLACK);
+  if (mgPerDl != oldLoRaMgPerDl) {
+#if defined(DISPLAY_TYPE_LCD_042)
+    u8g2.clearBuffer();  // clear the internal memory
+    u8g2.setFont(u8g_font_9x18);  // choose a suitable font
+    sprintf(displayBuffer, "%d", mgPerDl);
+    u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
+    u8g2.sendBuffer();  // transfer internal memory to the display
+#elif defined(DISPLAY_TYPE_TFT)
+    uint32_t color;
+    if ((mgPerDl < 70) ||
+        (mgPerDl > 250)) {
+      color = TFT_RED;
+    } else if ((mgPerDl >= 70 && mgPerDl < 80) ||
+                (mgPerDl > 150 && mgPerDl <= 250)) {
+      color = TFT_YELLOW;
+    } else {
+      color = TFT_GREEN;
+    }
+    sprintf(displayBuffer, " %d", mgPerDl);
+    tft.fillScreen(TFT_BLACK);
+    drawBorder(0, 0, tft.width(), tft.height(), color);
+    tft.setCursor(0, 4, 4);
+    tft.setTextColor(color);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-  tft.setTextSize(3);
+    tft.setTextSize(3);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-  tft.setTextSize(6);
+    tft.setTextSize(6);
 #endif
-  tft.println(oldTime);
-  strcpy(oldTime, printBuf);
-
-  int hour = timeinfo.tm_hour - 7;
-  if (hour < 0) {
-    hour += 24;
+    tft.println(displayBuffer);
+#endif
   }
-  sprintf(printBuf, " %02d:%02d", hour, timeinfo.tm_min);
-  // tft.fillScreen(TFT_BLACK);
-  tft.setCursor(0, 160, 4);
-  tft.setTextColor(TFT_GREEN);
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-  tft.setTextSize(3);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
-  tft.setTextSize(6);
 #endif
-  tft.println(printBuf);
+
+//   time_t nowSecs = time(nullptr);
+//   struct tm timeinfo;
+//   gmtime_r((const time_t *) &nowSecs, &timeinfo);
+//   Serial.print("Current time: ");
+//   Serial.print(asctime(&timeinfo));
+
+//   tft.setCursor(0, 160, 4);
+//   tft.setTextColor(TFT_BLACK);
+// #if defined(DISPLAY_TYPE_ST7735_128_160)
+//   tft.setTextSize(3);
+// #elif defined(DISPLAY_TYPE_ILI9488_480_320)
+//   tft.setTextSize(6);
+// #endif
+//   tft.println(oldTime);
+//   strcpy(oldTime, displayBuffer);
+
+//   int hour = timeinfo.tm_hour - 7;
+//   if (hour < 0) {
+//     hour += 24;
+//   }
+//   sprintf(displayBuffer, " %02d:%02d", hour, timeinfo.tm_min);
+//   // tft.fillScreen(TFT_BLACK);
+//   tft.setCursor(0, 160, 4);
+//   tft.setTextColor(TFT_GREEN);
+// #if defined(DISPLAY_TYPE_ST7735_128_160)
+//   tft.setTextSize(3);
+// #elif defined(DISPLAY_TYPE_ILI9488_480_320)
+//   tft.setTextSize(6);
+// #endif
+//   tft.println(displayBuffer);
 
 #if defined(ENABLE_LORA_RECEIVER)
   // try to parse encrypted message
@@ -422,24 +425,27 @@ void loop() {
     return;
   }
 
-  sprintf(printBuf, ", device id = %d, message type = %d, ", messageMetadata.deviceId, messageMetadata.type);
-  Serial.print(printBuf);
+  sprintf(displayBuffer, ", device id = %d, message type = %d, ", messageMetadata.deviceId, messageMetadata.type);
+  Serial.print(displayBuffer);
 
   switch (messageMetadata.type) {
     // case 0:
     //   encryptedMessage[encryptedMessageLength] = '\0';
-    //   sprintf(printBuf, "\"%s\"", &encryptedMessage[1]);
-    //   Serial.println(printBuf);
+    //   sprintf(displayBuffer, "\"%s\"", &encryptedMessage[1]);
+    //   Serial.println(displayBuffer);
     //   break;
 
     case 1:
-      sprintf(printBuf, "\"hello %d with hasMail = %d\"", messageMetadata.counter, data[0]);
-      Serial.println(printBuf);
+      sprintf(displayBuffer, "\"hello %d with hasMail = %d\"", messageMetadata.counter, data[0]);
+      Serial.println(displayBuffer);
       break;
 
     default:
-      sprintf(printBuf, "unknown message type %d", messageMetadata.type);
-      Serial.println(printBuf);
+      sprintf(displayBuffer, "unknown message type %d", messageMetadata.type);
+      Serial.println(displayBuffer);
   }
 #endif
+
+  oldLoRaMgPerDl = mgPerDl;
+  taskYIELD();
 }
