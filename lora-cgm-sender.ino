@@ -22,6 +22,7 @@ LoRaCrypto* loRaCrypto;
 
 LoRaClass FspiLoRa;
 // #define FspiLoRa LoRa
+uint setupState = 0x00;
 
 void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   // FspiLoRa.idle();
@@ -296,34 +297,32 @@ WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   if (xReturned != pdPASS) {
     Serial.println("HttpsTaks could not be created");
   }
+
+  setupState = 0xFF;
 }
 
 void onReceive(int packetSize) {
   Serial.println("onReceive");
 }
 
+#if defined(ENABLE_LORA_SENDER)
 struct cgm_struct {
   uint16_t mgPerDl;
 };
 
-long oldLoRaMgPerDl = -1;
-#if defined(ENABLE_LORA_SENDER)
 uint loRaGuaranteeTimer = millis();
-#endif
-#if defined(ENABLE_DISPLAY)
-char oldTime[255] = {'\0'};
-#endif
-void loop() {
-#if defined(ENABLE_LORA_SENDER)
+void sendCgmData(long mgPerDl, long oldLoRaMgPerDl) {
   if ((mgPerDl != oldLoRaMgPerDl) ||
       ((millis() - loRaGuaranteeTimer) > 300000)) {
     struct cgm_struct cgm = { mgPerDl & 0xFFFF };
     sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
     loRaGuaranteeTimer = millis();
   }
+}
 #endif
 
 #if defined(ENABLE_DISPLAY)
+void displayCgmData(long mgPerDl, long oldLoRaMgPerDl) {
   char displayBuffer[255];
 
   if (mgPerDl != oldLoRaMgPerDl) {
@@ -357,8 +356,10 @@ void loop() {
     tft.println(displayBuffer);
 #endif
   }
-#endif
+}
 
+char oldTime[255] = {'\0'};
+void displayClock() {
 //   time_t nowSecs = time(nullptr);
 //   struct tm timeinfo;
 //   gmtime_r((const time_t *) &nowSecs, &timeinfo);
@@ -389,8 +390,11 @@ void loop() {
 //   tft.setTextSize(6);
 // #endif
 //   tft.println(displayBuffer);
+}
+#endif
 
 #if defined(ENABLE_LORA_RECEIVER)
+void receiveLoRaData() {
   // try to parse encrypted message
   int encryptedMessageSize = LoRa.parsePacket();
   // Serial.println(encryptedMessageSize);
@@ -429,13 +433,7 @@ void loop() {
   Serial.print(displayBuffer);
 
   switch (messageMetadata.type) {
-    // case 0:
-    //   encryptedMessage[encryptedMessageLength] = '\0';
-    //   sprintf(displayBuffer, "\"%s\"", &encryptedMessage[1]);
-    //   Serial.println(displayBuffer);
-    //   break;
-
-    case 1:
+    case 29:
       sprintf(displayBuffer, "\"hello %d with hasMail = %d\"", messageMetadata.counter, data[0]);
       Serial.println(displayBuffer);
       break;
@@ -444,7 +442,36 @@ void loop() {
       sprintf(displayBuffer, "unknown message type %d", messageMetadata.type);
       Serial.println(displayBuffer);
   }
+}
 #endif
+
+long oldLoRaMgPerDl = -1;
+void loop() {
+  switch (setupState) {
+    // Initialize the time
+    case 0x00:
+      break;
+
+    // Initialize NTP
+    case 0x01:
+      break;
+
+    // Normal running
+    case 0xFF:
+#if defined(ENABLE_LORA_SENDER)
+      sendCgmData(mgPerDl, oldLoRaMgPerDl);
+#endif
+
+#if defined(ENABLE_DISPLAY)
+      displayCgmData(mgPerDl, oldLoRaMgPerDl);
+      displayClock();
+#endif
+
+#if defined(ENABLE_LORA_RECEIVER)
+      receiveLoRaData();
+#endif
+      break;
+  }
 
   oldLoRaMgPerDl = mgPerDl;
   taskYIELD();
