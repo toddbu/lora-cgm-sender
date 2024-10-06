@@ -68,7 +68,6 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 void setClock() {
   configTime(0, 0, "pool.ntp.org");
 
-  Serial.print(F("Waiting for NTP time sync: "));
   time_t nowSecs = time(nullptr);
   while (nowSecs < 8 * 3600 * 2) {
     delay(500);
@@ -196,115 +195,6 @@ void vHttpsTask(void* pvParameters) {
   }
 }
 
-#if defined(ENABLE_LORA)
-SPIClass spi2(FSPI);
-#endif
-void setup() {
-#if defined(ENABLE_DISPLAY)
-#if defined(DISPLAY_TYPE_LCD_042)
-  Wire.begin(SDA_PIN, SCL_PIN);
-  u8g2.begin();
-#elif defined(DISPLAY_TYPE_TFT)
-  tft.init();
-  // tft.init(INITR_BLACKTAB);
-  tft.setRotation(3);
-  tft.fillScreen(TFT_BLACK);
-  drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
-  tft.setCursor(4, 8, 4);
-  tft.setTextColor(TFT_GREEN);
-  tft.println(" Waiting...");
-#endif
-
-  // Turn on backlight LED for ILI9488
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH);
-#endif
-
-  Serial.begin(9600);
-  unsigned long baseMillis = millis();
-  while (!Serial &&
-         ((millis() - baseMillis) < 5000)) {
-    taskYIELD();
-  }
-
-  Serial.println();
-  Serial.println();
-  Serial.println();
-
-  #if defined(ENABLE_LORA)
-  // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
-  spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
-  FspiLoRa.setSPI(spi2);
-  // MISO;
-  // MOSI;
-  // SCK;
-  // SS;
-  
-  // FspiLoRa.setPins(ss, reset, dio0);
-  // FspiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W (C3)
-  FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
-  pinMode(4, INPUT);
-
-  if (!FspiLoRa.begin(912900000)) {
-    Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
-    delay(60000);
-    Serial.println("Restarting!");
-    ESP.restart();
-    // while (1);
-  }
-
-  FspiLoRa.setSpreadingFactor(10);
-  FspiLoRa.setSignalBandwidth(125000);
-  FspiLoRa.setCodingRate4(5);
-  FspiLoRa.setPreambleLength(8);
-  FspiLoRa.setSyncWord(0x12);
-  FspiLoRa.enableCrc();
-
-  FspiLoRa.idle();
-
-  loRaCrypto = new LoRaCrypto(&encryptionCredentials);
-#endif
-
-WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  Serial.print("Connecting to Wi-Fi");
-  baseMillis = millis();
-  while ((WiFi.status() != WL_CONNECTED) &&
-         ((millis() - baseMillis) < 10000)) {
-    Serial.print(".");
-    delay(1000);
-    taskYIELD();
-  }
-  Serial.println();
-  Serial.print("Connected with IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.println();
-
-  setClock();  
-
-  BaseType_t xReturned;
-  TaskHandle_t xHandle = NULL;
-
-  #define STACK_SIZE 16384  // 16KB
-  xReturned = xTaskCreate(
-    vHttpsTask,         /* Function that implements the task. */
-    "HTTPS",           /* Text name for the task. */
-    STACK_SIZE,        /* Stack size in words, not bytes. */
-    NULL,              /* Parameter passed into the task. */
-    5, // tskIDLE_PRIORITY,  /* Priority at which the task is created. */
-    &xHandle);         /* Used to pass out the created task's handle. */
-
-  if (xReturned != pdPASS) {
-    Serial.println("HttpsTaks could not be created");
-  }
-
-  setupState = 0xFF;
-}
-
-void onReceive(int packetSize) {
-  Serial.println("onReceive");
-}
-
 #if defined(ENABLE_LORA_SENDER)
 struct cgm_struct {
   uint16_t mgPerDl;
@@ -394,6 +284,10 @@ void displayClock() {
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
+void onReceive(int packetSize) {
+  Serial.println("onReceive");
+}
+
 void receiveLoRaData() {
   // try to parse encrypted message
   int encryptedMessageSize = LoRa.parsePacket();
@@ -445,15 +339,137 @@ void receiveLoRaData() {
 }
 #endif
 
+#if defined(ENABLE_LORA)
+SPIClass spi2(FSPI);
+#endif
+void setup() {
+#if defined(ENABLE_DISPLAY)
+#if defined(DISPLAY_TYPE_LCD_042)
+  Wire.begin(SDA_PIN, SCL_PIN);
+  u8g2.begin();
+#elif defined(DISPLAY_TYPE_TFT)
+  tft.init();
+  // tft.init(INITR_BLACKTAB);
+  tft.setRotation(3);
+  tft.fillScreen(TFT_BLACK);
+  drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
+  tft.setCursor(4, 8, 4);
+  tft.setTextColor(TFT_GREEN);
+  tft.println(" Waiting...");
+#endif
+
+  // Turn on backlight LED for ILI9488
+  pinMode(13, OUTPUT);
+  digitalWrite(13, HIGH);
+#endif
+
+  Serial.begin(9600);
+  unsigned long baseMillis = millis();
+  while (!Serial &&
+         ((millis() - baseMillis) < 5000)) {
+    taskYIELD();
+  }
+
+  Serial.println();
+  Serial.println();
+  Serial.println();
+
+  #if defined(ENABLE_LORA)
+  // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
+  spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
+  FspiLoRa.setSPI(spi2);
+  // MISO;
+  // MOSI;
+  // SCK;
+  // SS;
+  
+  // FspiLoRa.setPins(ss, reset, dio0);
+  // FspiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W (C3)
+  FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
+  pinMode(4, INPUT);
+
+  if (!FspiLoRa.begin(912900000)) {
+    Serial.println("Starting LoRa failed! Waiting 60 seconds for restart...");
+    delay(60000);
+    Serial.println("Restarting!");
+    ESP.restart();
+    // while (1);
+  }
+
+  FspiLoRa.setSpreadingFactor(10);
+  FspiLoRa.setSignalBandwidth(125000);
+  FspiLoRa.setCodingRate4(5);
+  FspiLoRa.setPreambleLength(8);
+  FspiLoRa.setSyncWord(0x12);
+  FspiLoRa.enableCrc();
+
+  FspiLoRa.idle();
+
+  loRaCrypto = new LoRaCrypto(&encryptionCredentials);
+#endif
+
+  setupState = 0x00;
+}
+
 long oldLoRaMgPerDl = -1;
+unsigned long baseMillis = millis();
 void loop() {
   switch (setupState) {
     // Initialize the time
     case 0x00:
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+      Serial.print("Connecting to Wi-Fi");
+      tft.println(" Connecting to Wi-Fi...");
+      baseMillis = millis();
+      while ((WiFi.status() != WL_CONNECTED) &&
+            ((millis() - baseMillis) < 10000)) {
+        Serial.print(".");
+        delay(1000);
+        taskYIELD();
+      }
+      Serial.println();
+      Serial.print("Connected with IP: ");
+      Serial.println(WiFi.localIP());
+      Serial.println();
+
+      setupState = 0x01;
+
       break;
 
     // Initialize NTP
     case 0x01:
+      Serial.print(F("Waiting for NTP time sync..."));
+      tft.println("Waiting for NTP time sync...");
+
+      setClock();
+
+      setupState = 0x02;
+
+      break;
+
+    // Initialize the HTTPS thread
+    case 0x02:
+      {
+        BaseType_t xReturned;
+        TaskHandle_t xHandle = NULL;
+
+        #define STACK_SIZE 16384  // 16KB
+        xReturned = xTaskCreate(
+          vHttpsTask,         /* Function that implements the task. */
+          "HTTPS",           /* Text name for the task. */
+          STACK_SIZE,        /* Stack size in words, not bytes. */
+          NULL,              /* Parameter passed into the task. */
+          5, // tskIDLE_PRIORITY,  /* Priority at which the task is created. */
+          &xHandle);         /* Used to pass out the created task's handle. */
+
+        if (xReturned != pdPASS) {
+          Serial.println("HttpsTask could not be created");
+        }
+
+        setupState = 0xFF;
+      }
+
       break;
 
     // Normal running
@@ -470,6 +486,7 @@ void loop() {
 #if defined(ENABLE_LORA_RECEIVER)
       receiveLoRaData();
 #endif
+
       break;
   }
 
