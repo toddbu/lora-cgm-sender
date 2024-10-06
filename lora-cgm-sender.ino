@@ -200,27 +200,26 @@ struct cgm_struct {
   uint16_t mgPerDl;
 };
 
+long oldCgmMgPerDl = -1;
 uint loRaGuaranteeTimer = millis();
-void sendCgmData(long mgPerDl, long oldLoRaMgPerDl) {
-  if ((mgPerDl != oldLoRaMgPerDl) ||
+void sendCgmData(long mgPerDl) {
+  if ((mgPerDl != oldCgmMgPerDl) ||
       ((millis() - loRaGuaranteeTimer) > 300000)) {
     struct cgm_struct cgm = { mgPerDl & 0xFFFF };
     sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
     loRaGuaranteeTimer = millis();
+    oldCgmMgPerDl = mgPerDl;
   }
 }
 #endif
 
 #if defined(ENABLE_DISPLAY)
-void displayCgmData(long mgPerDl, long oldLoRaMgPerDl) {
+long oldDisplayMgPerDl = -1;
+char oldDisplayCgm[255] = {'\0'};
+void displayCgmData(long mgPerDl) {
   char displayBuffer[255];
 
-  Serial.print("mgPerDl = ");
-  Serial.print(mgPerDl);
-  Serial.print(", oldLoRaMgPerDl = ");
-  Serial.println(oldLoRaMgPerDl);
-  delay(5000);
-  if (mgPerDl != oldLoRaMgPerDl) {
+  if (mgPerDl != oldDisplayMgPerDl) {
 #if defined(DISPLAY_TYPE_LCD_042)
     u8g2.clearBuffer();  // clear the internal memory
     u8g2.setFont(u8g_font_9x18);  // choose a suitable font
@@ -240,21 +239,26 @@ void displayCgmData(long mgPerDl, long oldLoRaMgPerDl) {
     }
     sprintf(displayBuffer, " %d", mgPerDl);
     // tft.fillScreen(TFT_BLACK);
-    // strcpy(oldTime, "");
+    // strcpy(oldDisplayTime, "");
     drawBorder(0, 0, tft.width(), tft.height(), color);
-    tft.setCursor(0, 4, 4);
-    tft.setTextColor(color);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
     tft.setTextSize(3);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     tft.setTextSize(6);
 #endif
+    tft.setCursor(0, 4, 4);
+    tft.setTextColor(TFT_BLACK);
+    tft.println(oldDisplayCgm);  //Temporary hack
+    tft.setCursor(0, 4, 4);
+    tft.setTextColor(color);
     tft.println(displayBuffer);
+    strcpy(oldDisplayCgm, displayBuffer);
 #endif
+    oldDisplayMgPerDl = mgPerDl;
   }
 }
 
-char oldTime[255] = {'\0'};
+char oldDisplayTime[255] = {'\0'};
 void displayClock() {
   char displayBuffer[255];
   time_t nowSecs = time(nullptr);
@@ -267,7 +271,7 @@ void displayClock() {
   }
   sprintf(displayBuffer, " %02d:%02d", hour, timeinfo.tm_min);
 
-  if (strcmp(displayBuffer, oldTime) != 0) {
+  if (strcmp(displayBuffer, oldDisplayTime) != 0) {
     Serial.print("Current time: ");
     Serial.print(asctime(&timeinfo));
 
@@ -278,8 +282,8 @@ void displayClock() {
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     tft.setTextSize(6);
 #endif
-    tft.println(oldTime);
-    strcpy(oldTime, displayBuffer);
+    tft.println(oldDisplayTime);
+    strcpy(oldDisplayTime, displayBuffer);
 
     // tft.fillScreen(TFT_BLACK);
     tft.setCursor(0, 160, 4);
@@ -489,11 +493,11 @@ void loop() {
     // Normal running
     case 0xFF:
 #if defined(ENABLE_LORA_SENDER)
-      sendCgmData(mgPerDl, oldLoRaMgPerDl);
+      sendCgmData(mgPerDl);
 #endif
 
 #if defined(ENABLE_DISPLAY)
-      displayCgmData(mgPerDl, oldLoRaMgPerDl);
+      displayCgmData(mgPerDl);
       displayClock();
 #endif
 
