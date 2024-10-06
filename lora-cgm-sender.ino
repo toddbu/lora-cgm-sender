@@ -215,6 +215,11 @@ void sendCgmData(long mgPerDl, long oldLoRaMgPerDl) {
 void displayCgmData(long mgPerDl, long oldLoRaMgPerDl) {
   char displayBuffer[255];
 
+  Serial.print("mgPerDl = ");
+  Serial.print(mgPerDl);
+  Serial.print(", oldLoRaMgPerDl = ");
+  Serial.println(oldLoRaMgPerDl);
+  delay(5000);
   if (mgPerDl != oldLoRaMgPerDl) {
 #if defined(DISPLAY_TYPE_LCD_042)
     u8g2.clearBuffer();  // clear the internal memory
@@ -234,7 +239,8 @@ void displayCgmData(long mgPerDl, long oldLoRaMgPerDl) {
       color = TFT_GREEN;
     }
     sprintf(displayBuffer, " %d", mgPerDl);
-    tft.fillScreen(TFT_BLACK);
+    // tft.fillScreen(TFT_BLACK);
+    // strcpy(oldTime, "");
     drawBorder(0, 0, tft.width(), tft.height(), color);
     tft.setCursor(0, 4, 4);
     tft.setTextColor(color);
@@ -250,36 +256,41 @@ void displayCgmData(long mgPerDl, long oldLoRaMgPerDl) {
 
 char oldTime[255] = {'\0'};
 void displayClock() {
-//   time_t nowSecs = time(nullptr);
-//   struct tm timeinfo;
-//   gmtime_r((const time_t *) &nowSecs, &timeinfo);
-//   Serial.print("Current time: ");
-//   Serial.print(asctime(&timeinfo));
+  char displayBuffer[255];
+  time_t nowSecs = time(nullptr);
+  struct tm timeinfo;
+  gmtime_r((const time_t *) &nowSecs, &timeinfo);
 
-//   tft.setCursor(0, 160, 4);
-//   tft.setTextColor(TFT_BLACK);
-// #if defined(DISPLAY_TYPE_ST7735_128_160)
-//   tft.setTextSize(3);
-// #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-//   tft.setTextSize(6);
-// #endif
-//   tft.println(oldTime);
-//   strcpy(oldTime, displayBuffer);
+  int hour = timeinfo.tm_hour - 7;
+  if (hour < 0) {
+    hour += 24;
+  }
+  sprintf(displayBuffer, " %02d:%02d", hour, timeinfo.tm_min);
 
-//   int hour = timeinfo.tm_hour - 7;
-//   if (hour < 0) {
-//     hour += 24;
-//   }
-//   sprintf(displayBuffer, " %02d:%02d", hour, timeinfo.tm_min);
-//   // tft.fillScreen(TFT_BLACK);
-//   tft.setCursor(0, 160, 4);
-//   tft.setTextColor(TFT_GREEN);
-// #if defined(DISPLAY_TYPE_ST7735_128_160)
-//   tft.setTextSize(3);
-// #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-//   tft.setTextSize(6);
-// #endif
-//   tft.println(displayBuffer);
+  if (strcmp(displayBuffer, oldTime) != 0) {
+    Serial.print("Current time: ");
+    Serial.print(asctime(&timeinfo));
+
+    tft.setCursor(0, 160, 4);
+    tft.setTextColor(TFT_BLACK);
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+    tft.setTextSize(3);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+    tft.setTextSize(6);
+#endif
+    tft.println(oldTime);
+    strcpy(oldTime, displayBuffer);
+
+    // tft.fillScreen(TFT_BLACK);
+    tft.setCursor(0, 160, 4);
+    tft.setTextColor(TFT_GREEN);
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+    tft.setTextSize(3);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+    tft.setTextSize(6);
+#endif
+    tft.println(displayBuffer);
+  }
 }
 #endif
 
@@ -443,6 +454,9 @@ void loop() {
       tft.println("Waiting for NTP time sync...");
 
       setClock();
+
+      tft.fillScreen(TFT_BLACK);
+      drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
 
       setupState = 0x02;
 
