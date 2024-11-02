@@ -11,11 +11,14 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
-#define ENABLE_LORA
 #define ENABLE_LORA_SENDER
-// #define ENABLE_LORA_RECEIVER
+#define ENABLE_LORA_RECEIVER
 #define DEVICE_ID 33
 #define ENABLE_DISPLAY
+
+#if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
+#define ENABLE_LORA
+#endif
 
 #if defined(ENABLE_LORA)
 LoRaCrypto* loRaCrypto;
@@ -23,7 +26,9 @@ LoRaCrypto* loRaCrypto;
 LoRaClass FspiLoRa;
 // #define FspiLoRa LoRa
 uint setupState = 0x00;
+#endif
 
+#if defined(ENABLE_LORA_SENDER)
 void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   // FspiLoRa.idle();
   FspiLoRa.beginPacket();
@@ -41,7 +46,10 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   Serial.println(encryptedMessageLength);
 
   FspiLoRa.endPacket();
-  // delay(2000);
+  delay(1000);
+
+  // FspiLoRa.receive();
+
   // FspiLoRa.sleep();
 }
 #endif
@@ -142,6 +150,7 @@ bool callApi(const char* endpoint, bool performLogin, JsonDocument* doc) {
   return true;
 }
 
+#if defined(ENABLE_DISPLAY)
 void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
   float wd = 6.0;
   float radius = wd / 2.0;
@@ -151,6 +160,7 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
   tft.drawWideLine(w - radius, y + radius, w - radius, h - radius, wd, color);
   tft.drawWideLine(x + radius, h - radius, w - radius, h - radius, wd, color);
 }
+#endif
 
 long httpsTaskHighWaterMark = LONG_MAX;
 volatile long mgPerDl = -1;
@@ -305,7 +315,7 @@ void onReceive(int packetSize) {
 
 void receiveLoRaData() {
   // try to parse encrypted message
-  int encryptedMessageSize = LoRa.parsePacket();
+  int encryptedMessageSize = FspiLoRa.parsePacket();
   // Serial.println(encryptedMessageSize);
   if (!encryptedMessageSize) {
     return;
@@ -316,13 +326,13 @@ void receiveLoRaData() {
   Serial.print(encryptedMessageSize);
   // print RSSI of message
   Serial.print(" with RSSI ");
-  Serial.print(LoRa.packetRssi());
+  Serial.print(FspiLoRa.packetRssi());
 
   // read encrypted message
   byte encryptedMessage[255];
   uint encryptedMessageLength = 0;
-  while (LoRa.available()) {
-    encryptedMessage[encryptedMessageLength++] = LoRa.read();
+  while (FspiLoRa.available()) {
+    encryptedMessage[encryptedMessageLength++] = FspiLoRa.read();
   }
 
   byte data[encryptedMessageLength];
@@ -338,6 +348,7 @@ void receiveLoRaData() {
     return;
   }
 
+  char displayBuffer[255];
   sprintf(displayBuffer, ", device id = %d, message type = %d, ", messageMetadata.deviceId, messageMetadata.type);
   Serial.print(displayBuffer);
 
@@ -388,9 +399,11 @@ void setup() {
   Serial.println();
   Serial.println();
   Serial.println();
+  Serial.println("Starting...");
 
   #if defined(ENABLE_LORA)
   // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
+  // FspiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W (C3)
   spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
   FspiLoRa.setSPI(spi2);
   // MISO;
@@ -399,8 +412,12 @@ void setup() {
   // SS;
   
   // FspiLoRa.setPins(ss, reset, dio0);
-  // FspiLoRa.setPins(7, 8, 3);  // ESP32-Zero-RFM95W (C3)
-  FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
+  // FspiLoRa.setPins(7, 9, 18);  // ESP32 C3 dev board
+  // FspiLoRa.setPins(8, 9, 10);  // Pico
+  // FspiLoRa.setPins(8, 4, 3);  // Feather M0 LoRa
+FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
+  pinMode(8, OUTPUT);
+  pinMode(9, OUTPUT);
   pinMode(4, INPUT);
 
   if (!FspiLoRa.begin(912900000)) {
@@ -418,9 +435,15 @@ void setup() {
   FspiLoRa.setSyncWord(0x12);
   FspiLoRa.enableCrc();
 
-  FspiLoRa.idle();
+  Serial.println("LoRa started successfully");
 
   loRaCrypto = new LoRaCrypto(&encryptionCredentials);
+#endif
+
+  // FspiLoRa.idle();
+#if defined(LORA_ENABLE_RECEIVER)
+  FspiLoRa.onReceive(onReceive);
+  FspiLoRa.receive();
 #endif
 
   setupState = 0x00;
@@ -435,7 +458,9 @@ void loop() {
       WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
       Serial.print("Connecting to Wi-Fi");
+#if defined(ENABLE_DISPLAY)
       tft.println(" Connecting to Wi-Fi...");
+#endif
       baseMillis = millis();
       while ((WiFi.status() != WL_CONNECTED) &&
             ((millis() - baseMillis) < 10000)) {
@@ -455,12 +480,16 @@ void loop() {
     // Initialize NTP
     case 0x01:
       Serial.print(F("Waiting for NTP time sync..."));
+#if defined(ENABLE_DISPLAY)
       tft.println("Waiting for NTP time sync...");
+#endif
 
       setClock();
 
+#if defined(ENABLE_DISPLAY)
       tft.fillScreen(TFT_BLACK);
       drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
+#endif
 
       setupState = 0x02;
 
@@ -502,6 +531,7 @@ void loop() {
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
+      // Serial.println("ENABLE_LORA_RECEIVER");
       receiveLoRaData();
 #endif
 
