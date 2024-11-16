@@ -13,7 +13,7 @@
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
-#define DEVICE_ID 33
+#define DEVICE_ID 32
 #define ENABLE_DISPLAY
 
 #if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
@@ -57,8 +57,8 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 #if defined(ENABLE_DISPLAY)
 // #define DISPLAY_TYPE_LCD_042
 #define DISPLAY_TYPE_TFT
-// #define DISPLAY_TYPE_ST7735_128_160
-#define DISPLAY_TYPE_ILI9488_480_320
+#define DISPLAY_TYPE_ST7735_128_160
+// #define DISPLAY_TYPE_ILI9488_480_320
 
 #if defined(DISPLAY_TYPE_LCD_042)
 #include <U8g2lib.h>
@@ -257,10 +257,10 @@ void displayCgmData(long mgPerDl) {
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     tft.setTextSize(6);
 #endif
-    tft.setCursor(0, 4, 4);
+    tft.setCursor(0, 9, 4);
     tft.setTextColor(TFT_BLACK);
     tft.println(oldDisplayCgm);  //Temporary hack
-    tft.setCursor(0, 4, 4);
+    tft.setCursor(0, 9, 4);
     tft.setTextColor(color);
     tft.println(displayBuffer);
     strcpy(oldDisplayCgm, displayBuffer);
@@ -286,24 +286,26 @@ void displayClock() {
     Serial.print("Current time: ");
     Serial.print(asctime(&timeinfo));
 
-    tft.setCursor(0, 160, 4);
-    tft.setTextColor(TFT_BLACK);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    tft.setTextSize(3);
+    tft.setTextSize(2);
+    tft.setCursor(0, 75, 4);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     tft.setTextSize(6);
+    tft.setCursor(0, 160, 4);
 #endif
+    tft.setTextColor(TFT_BLACK);
     tft.println(oldDisplayTime);
     strcpy(oldDisplayTime, displayBuffer);
 
     // tft.fillScreen(TFT_BLACK);
-    tft.setCursor(0, 160, 4);
-    tft.setTextColor(TFT_GREEN);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    tft.setTextSize(3);
+    tft.setTextSize(2);
+    tft.setCursor(0, 75, 4);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     tft.setTextSize(6);
+    tft.setCursor(0, 160, 4);
 #endif
+    tft.setTextColor(TFT_GREEN);
     tft.println(displayBuffer);
   }
 }
@@ -377,9 +379,10 @@ void setup() {
 #elif defined(DISPLAY_TYPE_TFT)
   tft.init();
   // tft.init(INITR_BLACKTAB);
-  tft.setRotation(1);
+  tft.setRotation(3);
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
+  tft.setTextSize(1);
   tft.setCursor(4, 8, 4);
   tft.setTextColor(TFT_GREEN);
   tft.println(" Waiting...");
@@ -416,7 +419,7 @@ void setup() {
   // FspiLoRa.setPins(7, 9, 18);  // ESP32 C3 dev board
   // FspiLoRa.setPins(8, 9, 10);  // Pico
   // FspiLoRa.setPins(8, 4, 3);  // Feather M0 LoRa
-FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
+  FspiLoRa.setPins(8, 9, 4);  // ESP32-Zero-RFM95W (S3)
   pinMode(8, OUTPUT);
   pinMode(9, OUTPUT);
   pinMode(4, INPUT);
