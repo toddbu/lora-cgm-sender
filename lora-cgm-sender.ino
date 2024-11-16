@@ -208,6 +208,7 @@ void vHttpsTask(void* pvParameters) {
 #if defined(ENABLE_LORA_SENDER)
 struct cgm_struct {
   uint16_t mgPerDl;
+  int64_t time;
 };
 
 long oldCgmMgPerDl = -1;
@@ -275,7 +276,7 @@ void displayClock() {
   struct tm timeinfo;
   gmtime_r((const time_t *) &nowSecs, &timeinfo);
 
-  int hour = timeinfo.tm_hour - 7;
+  int hour = timeinfo.tm_hour - 8;
   if (hour < 0) {
     hour += 24;
   }
@@ -376,7 +377,7 @@ void setup() {
 #elif defined(DISPLAY_TYPE_TFT)
   tft.init();
   // tft.init(INITR_BLACKTAB);
-  tft.setRotation(3);
+  tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setCursor(4, 8, 4);
