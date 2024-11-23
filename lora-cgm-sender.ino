@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <TimeLib.h>
+#include <Time.h>
 #include <ArduinoJson.h>
 #include "credentials.h"
 #include <Crypto.h>
@@ -13,7 +15,7 @@
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
-#define DEVICE_ID 32
+#define DEVICE_ID 33
 #define ENABLE_DISPLAY
 
 #if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
@@ -57,8 +59,8 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 #if defined(ENABLE_DISPLAY)
 // #define DISPLAY_TYPE_LCD_042
 #define DISPLAY_TYPE_TFT
-// #define DISPLAY_TYPE_ST7735_128_160
-#define DISPLAY_TYPE_ILI9488_480_320
+#define DISPLAY_TYPE_ST7735_128_160
+// #define DISPLAY_TYPE_ILI9488_480_320
 
 #if defined(DISPLAY_TYPE_LCD_042)
 #include <U8g2lib.h>
@@ -216,7 +218,7 @@ uint loRaGuaranteeTimer = millis();
 void sendCgmData(long mgPerDl) {
   if ((mgPerDl != oldCgmMgPerDl) ||
       ((millis() - loRaGuaranteeTimer) > 300000)) {
-    struct cgm_struct cgm = { mgPerDl & 0xFFFF, 0 };
+    struct cgm_struct cgm = { mgPerDl & 0xFFFF, time(nullptr) };
     sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
     loRaGuaranteeTimer = millis();
     oldCgmMgPerDl = mgPerDl;
@@ -357,8 +359,18 @@ void receiveLoRaData() {
 
   switch (messageMetadata.type) {
     case 29:
-      sprintf(displayBuffer, "\"hello %d with hasMail = %d\"", messageMetadata.counter, data[0]);
-      Serial.println(displayBuffer);
+      {
+        struct cgm_struct cgm;
+
+        memcpy(&cgm, data, sizeof(cgm));
+        if (cgm.time == 0) {
+          cgm.time = time(nullptr);
+        }
+
+        mgPerDl = cgm.mgPerDl;
+        sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, cgm.mgPerDl, cgm.time);
+        Serial.println(displayBuffer);
+      }
       break;
 
     default:
@@ -379,7 +391,11 @@ void setup() {
 #elif defined(DISPLAY_TYPE_TFT)
   tft.init();
   // tft.init(INITR_BLACKTAB);
+  #if defined(DISPLAY_TYPE_ST7735_128_160)
+  tft.setRotation(3);
+  #else
   tft.setRotation(1);
+  #endif
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setTextSize(1);
