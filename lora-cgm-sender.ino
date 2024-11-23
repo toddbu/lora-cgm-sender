@@ -57,8 +57,8 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 #if defined(ENABLE_DISPLAY)
 // #define DISPLAY_TYPE_LCD_042
 #define DISPLAY_TYPE_TFT
-#define DISPLAY_TYPE_ST7735_128_160
-// #define DISPLAY_TYPE_ILI9488_480_320
+// #define DISPLAY_TYPE_ST7735_128_160
+#define DISPLAY_TYPE_ILI9488_480_320
 
 #if defined(DISPLAY_TYPE_LCD_042)
 #include <U8g2lib.h>
@@ -216,7 +216,7 @@ uint loRaGuaranteeTimer = millis();
 void sendCgmData(long mgPerDl) {
   if ((mgPerDl != oldCgmMgPerDl) ||
       ((millis() - loRaGuaranteeTimer) > 300000)) {
-    struct cgm_struct cgm = { mgPerDl & 0xFFFF };
+    struct cgm_struct cgm = { mgPerDl & 0xFFFF, 0 };
     sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
     loRaGuaranteeTimer = millis();
     oldCgmMgPerDl = mgPerDl;
@@ -379,7 +379,7 @@ void setup() {
 #elif defined(DISPLAY_TYPE_TFT)
   tft.init();
   // tft.init(INITR_BLACKTAB);
-  tft.setRotation(3);
+  tft.setRotation(1);
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setTextSize(1);
