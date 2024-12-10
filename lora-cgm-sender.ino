@@ -69,13 +69,15 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 #define SCL_PIN 6
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
 #elif defined(DISPLAY_TYPE_TFT)
-#define FONT_NUMBER 4
+#define FONT_NUMBER 7
 #if defined(DISPLAY_TYPE_ST7735_128_160)
 #define FONT_SIZE 3
 #define FONT_SIZE_CLOCK 2
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-#define FONT_SIZE 6
-#define FONT_SIZE_CLOCK 6
+// #define FONT_SIZE 6
+// #define FONT_SIZE_CLOCK 6
+#define FONT_SIZE 3
+#define FONT_SIZE_CLOCK 3
 #endif
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
@@ -263,11 +265,11 @@ void displayCgmData(long mgPerDl) {
     // strcpy(oldDisplayTime, "");
     drawBorder(0, 0, tft.width(), tft.height(), color);
     tft.setTextSize(FONT_SIZE);
-    tft.setCursor(0, 9, FONT_NUMBER);
-    tft.setTextColor(TFT_BLACK);
-    tft.println(oldDisplayCgm);  //Temporary hack
-    tft.setCursor(0, 9, FONT_NUMBER);
-    tft.setTextColor(color);
+    // tft.setCursor(0, 9, FONT_NUMBER);
+    // tft.setTextColor(TFT_BLACK);
+    // tft.println(oldDisplayCgm);  //Temporary hack
+    tft.setCursor(5, 9, FONT_NUMBER);
+    tft.setTextColor(color, TFT_BLACK);
     tft.println(displayBuffer);
     strcpy(oldDisplayCgm, displayBuffer);
 #endif
@@ -293,21 +295,21 @@ void displayClock() {
     Serial.print(asctime(&timeinfo));
 
     tft.setTextSize(FONT_SIZE_CLOCK);
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-    tft.setCursor(0, 75, FONT_NUMBER);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    tft.setCursor(0, 160, FONT_NUMBER);
-#endif
-    tft.setTextColor(TFT_BLACK);
-    tft.println(oldDisplayTime);
+// #if defined(DISPLAY_TYPE_ST7735_128_160)
+//     tft.setCursor(5, 75, FONT_NUMBER);
+// #elif defined(DISPLAY_TYPE_ILI9488_480_320)
+//     tft.setCursor(5, 160, FONT_NUMBER);
+// #endif
+    // tft.setTextColor(TFT_BLACK);
+    // tft.println(oldDisplayTime);
     strcpy(oldDisplayTime, displayBuffer);
 
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    tft.setCursor(0, 75, FONT_NUMBER);
+    tft.setCursor(5, 75, FONT_NUMBER);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    tft.setCursor(0, 160, FONT_NUMBER);
+    tft.setCursor(5, 160, FONT_NUMBER);
 #endif
-    tft.setTextColor(TFT_GREEN);
+    tft.setTextColor(TFT_GREEN, TFT_BLACK);
     tft.println(displayBuffer);
   }
 }
@@ -400,8 +402,8 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setTextSize(1);
-  tft.setCursor(4, 8, FONT_NUMBER);
-  tft.setTextColor(TFT_GREEN);
+  tft.setCursor(5, 8, FONT_NUMBER);
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.println(" Waiting...");
 #endif
 
