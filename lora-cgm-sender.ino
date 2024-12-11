@@ -15,7 +15,7 @@
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
-#define DEVICE_ID 34
+#define DEVICE_ID 32
 #define ENABLE_DISPLAY
 
 #if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
@@ -70,6 +70,7 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
 #elif defined(DISPLAY_TYPE_TFT)
 #define FONT_NUMBER 7
+#define FONT_NUMBER_2 2
 #if defined(DISPLAY_TYPE_ST7735_128_160)
 #define FONT_SIZE 3
 #define FONT_SIZE_CLOCK 2
@@ -260,7 +261,7 @@ void displayCgmData(long mgPerDl) {
     } else {
       color = TFT_GREEN;
     }
-    sprintf(displayBuffer, " %d", mgPerDl);
+    sprintf(displayBuffer, "%d", mgPerDl);
     // tft.fillScreen(TFT_BLACK);
     // strcpy(oldDisplayTime, "");
     drawBorder(0, 0, tft.width(), tft.height(), color);
@@ -268,7 +269,7 @@ void displayCgmData(long mgPerDl) {
     // tft.setCursor(0, 9, FONT_NUMBER);
     // tft.setTextColor(TFT_BLACK);
     // tft.println(oldDisplayCgm);  //Temporary hack
-    tft.setCursor(5, 9, FONT_NUMBER);
+    tft.setCursor(174, 9, FONT_NUMBER);
     tft.setTextColor(color, TFT_BLACK);
     tft.println(displayBuffer);
     strcpy(oldDisplayCgm, displayBuffer);
@@ -402,7 +403,7 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setTextSize(1);
-  tft.setCursor(5, 8, FONT_NUMBER);
+  tft.setCursor(5, 8, FONT_NUMBER_2);
   tft.setTextColor(TFT_GREEN, TFT_BLACK);
   tft.println(" Waiting...");
 #endif
