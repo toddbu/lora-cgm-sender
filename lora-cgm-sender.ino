@@ -15,7 +15,7 @@
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
-#define DEVICE_ID 32
+#define DEVICE_ID 34
 #define ENABLE_DISPLAY
 
 #if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
@@ -271,6 +271,11 @@ void displayCgmData(long mgPerDl) {
     // tft.println(oldDisplayCgm);  //Temporary hack
     tft.setCursor(174, 9, FONT_NUMBER);
     tft.setTextColor(color, TFT_BLACK);
+    if (mgPerDl < 10) {
+      tft.print("  ");
+    } else if (mgPerDl < 100) {
+      tft.print(" ");
+    }
     tft.println(displayBuffer);
     strcpy(oldDisplayCgm, displayBuffer);
 #endif
