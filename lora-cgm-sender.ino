@@ -246,6 +246,7 @@ void vHttpsTask(void* pvParameters) {
       if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", &doc)) {
         JsonObject connection = doc["data"][0];
         mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
+        mgPerDl = 888;
         const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
         Serial.print("Glucose level = ");
         Serial.print(mgPerDl);
@@ -258,19 +259,12 @@ void vHttpsTask(void* pvParameters) {
       Serial.println("If not then the login credentials are bad");
     }
 
-    if (propaneExpirationTimer.isExpired(15000)) {
+    if (propaneExpirationTimer.isExpired(86400000)) {
       if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
         int level = (int) doc[0]["Level"];
         Serial.print("Propane level = ");
         Serial.print(level);
         Serial.println("%");
-        // token = (const char*) doc["data"]["authTicket"]["token"];
-        // tokenExpires = (long) doc["data"]["authTicket"]["expires"];
-
-        // struct tm timeinfo;
-        // gmtime_r((const time_t*) &tokenExpires, &timeinfo);
-        // Serial.print("Auth token expires at ");
-        // Serial.println(asctime(&timeinfo));
       }
 
       propaneExpirationTimer.reset();
@@ -304,6 +298,22 @@ void sendCgmData(long mgPerDl) {
 }
 #endif
 
+void rightJustify(const char* displayBuffer,
+                  uint8_t font,
+                  uint8_t fontSize,
+                  uint32_t color,
+                  int16_t baseX,
+                  int16_t baseY,
+                  int16_t textWidth) {
+  tft.setTextSize(fontSize);
+  tft.setCursor(366, baseY, font);
+  tft.setTextColor(color, TFT_BLACK);
+  tft.setTextDatum(TR_DATUM);
+  tft.setTextPadding(textWidth);
+  tft.drawString(displayBuffer, baseX, baseY, font);
+  tft.setTextDatum(TL_DATUM);
+}
+
 #if defined(ENABLE_DISPLAY)
 long oldDisplayMgPerDl = -1;
 char oldDisplayCgm[255] = {'\0'};
@@ -328,22 +338,10 @@ void displayCgmData(long mgPerDl) {
     } else {
       color = TFT_GREEN;
     }
-    sprintf(displayBuffer, "%d", mgPerDl);
-    // tft.fillScreen(TFT_BLACK);
-    // strcpy(oldDisplayTime, "");
     drawBorder(0, 0, tft.width(), tft.height(), color);
-    tft.setTextSize(FONT_SIZE);
-    // tft.setCursor(0, 9, FONT_NUMBER);
-    // tft.setTextColor(TFT_BLACK);
-    // tft.println(oldDisplayCgm);  //Temporary hack
-    tft.setCursor(174, 9, FONT_NUMBER);
-    tft.setTextColor(color, TFT_BLACK);
-    if (mgPerDl < 10) {
-      tft.print("  ");
-    } else if (mgPerDl < 100) {
-      tft.print(" ");
-    }
-    tft.println(displayBuffer);
+
+    sprintf(displayBuffer, "%d", mgPerDl);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 360);
     strcpy(oldDisplayCgm, displayBuffer);
 #endif
     oldDisplayMgPerDl = mgPerDl;
@@ -443,6 +441,7 @@ void receiveLoRaData() {
         }
 
         mgPerDl = cgm.mgPerDl;
+        mgPerDl = 99;
         sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, cgm.mgPerDl, cgm.time);
         Serial.println(displayBuffer);
       }
@@ -472,6 +471,7 @@ void setup() {
   #else
   tft.setRotation(1);
   #endif
+  tft.setTextWrap(false, false);
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
   tft.setTextSize(1);
