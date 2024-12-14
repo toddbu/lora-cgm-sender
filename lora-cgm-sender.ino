@@ -13,6 +13,22 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
+class ExpirationTimer {
+  private:
+    unsigned long _lastResetTime;
+
+  public:
+    ExpirationTimer(unsigned long lastResetTime = millis()) {
+      reset();
+    };
+    bool isExpired(unsigned long delay) {
+      return (millis() - _lastResetTime) > delay;
+    };
+    void reset(unsigned long lastResetTime = millis()) {
+      _lastResetTime = lastResetTime;
+    }
+};
+
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
 #define DEVICE_ID 34
@@ -111,7 +127,35 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
   HTTPClient https;
   client.setInsecure();
 
-  if (memcmp(requestType, "cgm", 3) == 0) {
+  if (strcmp(requestType, "propane") == 0) {
+    String authorization = "Basic " + String(PROPANE_CREDENTIALS_BASE64);
+    https.addHeader("Authorization", authorization);
+
+    if (!https.begin(client, endpoint)) {  // HTTPS
+      Serial.println("[HTTPS] Unable to connect");
+      https.end();
+      return false;
+    }
+
+    int httpCode;
+    // Serial.println("[HTTPS] GET...");
+    httpCode = https.GET();
+
+    // httpCode will be negative on error
+    if (httpCode <= 0) {
+      Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
+      https.end();
+      return false;
+    }
+
+    if ((httpCode != HTTP_CODE_OK) &&
+        (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
+      Serial.printf("[HTTPS] response code: %d\n", httpCode);
+      Serial.println("[HTTPS] request not processed due to response code");
+      https.end();
+      return false;
+    }
+  } else if (memcmp(requestType, "cgm", 3) == 0) {
     bool performLogin = (memcmp(&requestType[3], "Login", 5) == 0);
 
     // Serial.println("[HTTPS] begin...");
@@ -159,7 +203,7 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
   }
 
   String payload = https.getString();
-  // https.writeToStream(&Serial);  // Print the response body
+  // Serial.println(payload);  // Print the response body
   deserializeJson(*doc, payload);
 
   https.end();
@@ -181,6 +225,7 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 
 long httpsTaskHighWaterMark = LONG_MAX;
 volatile long mgPerDl = -1;
+ExpirationTimer propaneExpirationTimer = ExpirationTimer();
 void vHttpsTask(void* pvParameters) {
   while (true) {
     JsonDocument doc;
@@ -211,6 +256,24 @@ void vHttpsTask(void* pvParameters) {
       Serial.println("Auth token is outdated!");
       Serial.println("It should be automatically reauthorized the next time we attempt to fetch the data.");
       Serial.println("If not then the login credentials are bad");
+    }
+
+    if (propaneExpirationTimer.isExpired(15000)) {
+      if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
+        int level = (int) doc[0]["Level"];
+        Serial.print("Propane level = ");
+        Serial.print(level);
+        Serial.println("%");
+        // token = (const char*) doc["data"]["authTicket"]["token"];
+        // tokenExpires = (long) doc["data"]["authTicket"]["expires"];
+
+        // struct tm timeinfo;
+        // gmtime_r((const time_t*) &tokenExpires, &timeinfo);
+        // Serial.print("Auth token expires at ");
+        // Serial.println(asctime(&timeinfo));
+      }
+
+      propaneExpirationTimer.reset();
     }
 
     if (uxTaskGetStackHighWaterMark(NULL) < httpsTaskHighWaterMark) {
