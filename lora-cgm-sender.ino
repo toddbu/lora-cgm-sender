@@ -306,7 +306,6 @@ void rightJustify(const char* displayBuffer,
                   int16_t baseY,
                   int16_t textWidth) {
   tft.setTextSize(fontSize);
-  tft.setCursor(366, baseY, font);
   tft.setTextColor(color, TFT_BLACK);
   tft.setTextDatum(TR_DATUM);
   tft.setTextPadding(textWidth);
@@ -341,7 +340,7 @@ void displayCgmData(long mgPerDl) {
     drawBorder(0, 0, tft.width(), tft.height(), color);
 
     sprintf(displayBuffer, "%d", mgPerDl);
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 360);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 3 * 96);
     strcpy(oldDisplayCgm, displayBuffer);
 #endif
     oldDisplayMgPerDl = mgPerDl;
