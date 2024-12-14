@@ -106,52 +106,56 @@ void setClock() {
 
 String token;
 long tokenExpires = 0;
-bool callApi(const char* endpoint, bool performLogin, JsonDocument* doc) {
+bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
   WiFiClientSecure client;
   HTTPClient https;
   client.setInsecure();
 
-  // Serial.println("[HTTPS] begin...");
-  https.addHeader("Content-Type", "application/json");
-  https.addHeader("product", "llu.android");
-  https.addHeader("version", "4.9.0");
-  https.addHeader("user-agent", "curl/8.4.0");
-  https.addHeader("accept", "*/*");
-  if (!performLogin) {
-    String authorization = "Bearer " + token;
-    https.addHeader("Authorization", authorization);
-  }
+  if (memcmp(requestType, "cgm", 3) == 0) {
+    bool performLogin = (memcmp(&requestType[3], "Login", 5) == 0);
 
-  if (!https.begin(client, endpoint)) {  // HTTPS
-    Serial.println("[HTTPS] Unable to connect");
-    https.end();
-    return false;
-  }
+    // Serial.println("[HTTPS] begin...");
+    https.addHeader("Content-Type", "application/json");
+    https.addHeader("product", "llu.android");
+    https.addHeader("version", "4.9.0");
+    https.addHeader("user-agent", "curl/8.4.0");
+    https.addHeader("accept", "*/*");
+    if (!performLogin) {
+      String authorization = "Bearer " + token;
+      https.addHeader("Authorization", authorization);
+    }
 
-  int httpCode;
-  if (performLogin) {
-    // Serial.println("[HTTPS] POST...");
-    char cgmCredentials[128];
-    sprintf(cgmCredentials, "{\"email\":\"%s\",\"password\":\"%s\"}", CGM_USERNAME, CGM_PASSWORD);
-    httpCode = https.POST(cgmCredentials);
-  } else {
-    // Serial.println("[HTTPS] GET...");
-    httpCode = https.GET();
-  }
+    if (!https.begin(client, endpoint)) {  // HTTPS
+      Serial.println("[HTTPS] Unable to connect");
+      https.end();
+      return false;
+    }
 
-  // httpCode will be negative on error
-  if (httpCode <= 0) {
-    Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
-    https.end();
-    return false;
-  }
+    int httpCode;
+    if (performLogin) {
+      // Serial.println("[HTTPS] POST...");
+      char cgmCredentials[128];
+      sprintf(cgmCredentials, "{\"email\":\"%s\",\"password\":\"%s\"}", CGM_USERNAME, CGM_PASSWORD);
+      httpCode = https.POST(cgmCredentials);
+    } else {
+      // Serial.println("[HTTPS] GET...");
+      httpCode = https.GET();
+    }
 
-  if ((httpCode != HTTP_CODE_OK) &&
-      (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
-    Serial.printf("[HTTPS] response code: %d\n", httpCode);
-    Serial.println("[HTTPS] request not processed due to response code");
-    https.end();
-    return false;
+    // httpCode will be negative on error
+    if (httpCode <= 0) {
+      Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
+      https.end();
+      return false;
+    }
+
+    if ((httpCode != HTTP_CODE_OK) &&
+        (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
+      Serial.printf("[HTTPS] response code: %d\n", httpCode);
+      Serial.println("[HTTPS] request not processed due to response code");
+      https.end();
+      return false;
+    }
   }
 
   String payload = https.getString();
@@ -182,7 +186,7 @@ void vHttpsTask(void* pvParameters) {
     JsonDocument doc;
 
     if (time(nullptr) > tokenExpires) {
-      if (callApi("https://api.libreview.io/llu/auth/login", true, &doc)) {
+      if (callApi("https://api.libreview.io/llu/auth/login", "cgmLogin", &doc)) {
         token = (const char*) doc["data"]["authTicket"]["token"];
         tokenExpires = (long) doc["data"]["authTicket"]["expires"];
 
@@ -194,7 +198,7 @@ void vHttpsTask(void* pvParameters) {
     }
 
     if (time(nullptr) < tokenExpires) {
-      if (callApi("https://api.libreview.io/llu/connections", false, &doc)) {
+      if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", &doc)) {
         JsonObject connection = doc["data"][0];
         mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
         const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
