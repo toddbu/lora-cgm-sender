@@ -88,11 +88,9 @@ U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // Ea
 #define FONT_NUMBER 7
 #define FONT_NUMBER_2 2
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-#define FONT_SIZE 3
-#define FONT_SIZE_CLOCK 2
+#define FONT_SIZE 2
+#define FONT_SIZE_CLOCK 1
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-// #define FONT_SIZE 6
-// #define FONT_SIZE_CLOCK 6
 #define FONT_SIZE 3
 #define FONT_SIZE_CLOCK 3
 #endif
@@ -246,7 +244,7 @@ void vHttpsTask(void* pvParameters) {
       if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", &doc)) {
         JsonObject connection = doc["data"][0];
         mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
-        mgPerDl = 888;
+        // mgPerDl = 888;
         const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
         Serial.print("Glucose level = ");
         Serial.print(mgPerDl);
@@ -363,24 +361,12 @@ void displayClock() {
   if (strcmp(displayBuffer, oldDisplayTime) != 0) {
     Serial.print("Current time: ");
     Serial.print(asctime(&timeinfo));
-
-    tft.setTextSize(FONT_SIZE_CLOCK);
-// #if defined(DISPLAY_TYPE_ST7735_128_160)
-//     tft.setCursor(5, 75, FONT_NUMBER);
-// #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-//     tft.setCursor(5, 160, FONT_NUMBER);
-// #endif
-    // tft.setTextColor(TFT_BLACK);
-    // tft.println(oldDisplayTime);
-    strcpy(oldDisplayTime, displayBuffer);
-
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    tft.setCursor(5, 75, FONT_NUMBER);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 142, 75, 4.5 * 32);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    tft.setCursor(5, 160, FONT_NUMBER);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 462, 160, 4.5 * 96);
 #endif
-    tft.setTextColor(TFT_GREEN, TFT_BLACK);
-    tft.println(displayBuffer);
+    strcpy(oldDisplayTime, displayBuffer);
   }
 }
 #endif
@@ -440,7 +426,7 @@ void receiveLoRaData() {
         }
 
         mgPerDl = cgm.mgPerDl;
-        mgPerDl = 99;
+        // mgPerDl = 99;
         sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, cgm.mgPerDl, cgm.time);
         Serial.println(displayBuffer);
       }
