@@ -356,7 +356,7 @@ void displayClock() {
   if (hour < 0) {
     hour += 24;
   }
-  sprintf(displayBuffer, " %02d:%02d", hour, timeinfo.tm_min);
+  sprintf(displayBuffer, " %2d:%02d", hour, timeinfo.tm_min);
 
   if (strcmp(displayBuffer, oldDisplayTime) != 0) {
     Serial.print("Current time: ");
