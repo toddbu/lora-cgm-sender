@@ -79,6 +79,7 @@ U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // Ea
 #define FONT_SIZE 3
 #define FONT_SIZE_CLOCK 3
 #endif
+#define FONT_SIZE_PROPANE 1
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
@@ -208,7 +209,8 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 
 long httpsTaskHighWaterMark = LONG_MAX;
 volatile long mgPerDl = -1;
-ExpirationTimer propaneExpirationTimer = ExpirationTimer();
+int propaneLevel = -1;
+ExpirationTimer propaneExpirationTimer = ExpirationTimer(millis() + 86400000);
 void vHttpsTask(void* pvParameters) {
   while (true) {
     JsonDocument doc;
@@ -244,9 +246,9 @@ void vHttpsTask(void* pvParameters) {
 
     if (propaneExpirationTimer.isExpired(86400000)) {
       if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
-        int level = (int) doc[0]["Level"];
+        propaneLevel = (int) doc[0]["Level"];
         Serial.print("Propane level = ");
-        Serial.print(level);
+        Serial.print(propaneLevel);
         Serial.println("%");
       }
 
@@ -298,6 +300,7 @@ void rightJustify(const char* displayBuffer,
 
 #if defined(ENABLE_DISPLAY)
 long oldMgPerDl = -1;
+int oldPropaneLevel = -1;
 void displayCgmData(long mgPerDl) {
   char displayBuffer[8];
 
@@ -339,19 +342,35 @@ void displayClock() {
   if (hour < 0) {
     hour += 24;
   }
-  sprintf(displayBuffer, " %2d:%02d", hour, timeinfo.tm_min);
+  sprintf(displayBuffer, "%2d:%02d", hour, timeinfo.tm_min);
 
   if (strcmp(displayBuffer, oldDisplayTime) != 0) {
     Serial.print("Current time: ");
     Serial.print(asctime(&timeinfo));
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 142, 75, 4.5 * 32);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 142, 75, 4.5 * 96);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 462, 160, 4.5 * 96);
 #endif
     strcpy(oldDisplayTime, displayBuffer);
   }
 }
+
+void displayPropaneLevel() {
+  if (propaneLevel != oldPropaneLevel) {
+    char displayBuffer[8];
+
+    sprintf(displayBuffer, "%d", propaneLevel);
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 200, 9, 2 * 16);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 200, 9, 2 * 16);
+#endif
+
+    oldPropaneLevel = propaneLevel;
+  }
+}
+
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
@@ -592,6 +611,7 @@ void loop() {
 #if defined(ENABLE_DISPLAY)
       displayCgmData(mgPerDl);
       displayClock();
+      displayPropaneLevel();
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
