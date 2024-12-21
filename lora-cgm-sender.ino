@@ -12,22 +12,7 @@
 #include <LoRa.h>
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
-
-class ExpirationTimer {
-  private:
-    unsigned long _lastResetTime;
-
-  public:
-    ExpirationTimer(unsigned long lastResetTime = millis()) {
-      reset();
-    };
-    bool isExpired(unsigned long delay) {
-      return (millis() - _lastResetTime) > delay;
-    };
-    void reset(unsigned long lastResetTime = millis()) {
-      _lastResetTime = lastResetTime;
-    }
-};
+#include <ExpirationTimer.h>
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
