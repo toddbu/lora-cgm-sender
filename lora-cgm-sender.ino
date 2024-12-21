@@ -312,12 +312,11 @@ void rightJustify(const char* displayBuffer,
 }
 
 #if defined(ENABLE_DISPLAY)
-long oldDisplayMgPerDl = -1;
-char oldDisplayCgm[255] = {'\0'};
+long oldMgPerDl = -1;
 void displayCgmData(long mgPerDl) {
   char displayBuffer[255];
 
-  if (mgPerDl != oldDisplayMgPerDl) {
+  if (mgPerDl != oldMgPerDl) {
 #if defined(DISPLAY_TYPE_LCD_042)
     u8g2.clearBuffer();  // clear the internal memory
     u8g2.setFont(u8g_font_9x18);  // choose a suitable font
@@ -339,9 +338,8 @@ void displayCgmData(long mgPerDl) {
 
     sprintf(displayBuffer, "%d", mgPerDl);
     rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 3 * 96);
-    strcpy(oldDisplayCgm, displayBuffer);
 #endif
-    oldDisplayMgPerDl = mgPerDl;
+    oldMgPerDl = mgPerDl;
   }
 }
 
