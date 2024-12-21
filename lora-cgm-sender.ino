@@ -314,7 +314,7 @@ void rightJustify(const char* displayBuffer,
 #if defined(ENABLE_DISPLAY)
 long oldMgPerDl = -1;
 void displayCgmData(long mgPerDl) {
-  char displayBuffer[255];
+  char displayBuffer[8];
 
   if (mgPerDl != oldMgPerDl) {
 #if defined(DISPLAY_TYPE_LCD_042)
@@ -343,9 +343,9 @@ void displayCgmData(long mgPerDl) {
   }
 }
 
-char oldDisplayTime[255] = {'\0'};
+char oldDisplayTime[8] = {'\0'};
 void displayClock() {
-  char displayBuffer[255];
+  char displayBuffer[8];
   time_t nowSecs = time(nullptr);
   struct tm timeinfo;
   gmtime_r((const time_t *) &nowSecs, &timeinfo);
