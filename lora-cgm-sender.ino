@@ -17,7 +17,9 @@
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
-#define DEVICE_ID 34
+// #define DEVICE_ID 32  // Large #1
+// #define DEVICE_ID 33  // Small
+#define DEVICE_ID 34  // Large #2
 #define ENABLE_DISPLAY
 
 #if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
