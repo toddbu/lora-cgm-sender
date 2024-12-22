@@ -13,6 +13,7 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 #include <ExpirationTimer.h>
+#include "propane-tank.h"
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
@@ -362,11 +363,12 @@ void displayPropaneLevel() {
   if (propaneLevel != oldPropaneLevel) {
     char displayBuffer[8];
 
+    tft.pushImage(20, 6, 64, 64, PROPANE_TANK);
     sprintf(displayBuffer, "%d", propaneLevel);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 9, 2 * 16);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 15, 2 * 16);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 9, 2 * 16);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 15, 2 * 16);
 #endif
 
     oldPropaneLevel = propaneLevel;
