@@ -52,7 +52,6 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   Serial.println(encryptedMessageLength);
 
   FspiLoRa.endPacket();
-  delay(1000);
 
   // FspiLoRa.receive();
 
@@ -214,8 +213,8 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 
 long httpsTaskHighWaterMark = LONG_MAX;
 volatile long mgPerDl = -1;
-int propaneLevel = -1;
-ExpirationTimer propaneExpirationTimer = ExpirationTimer(millis() + (PROPANE_TIMEOUT * 1000));
+volatile int propaneLevel = -1;
+ExpirationTimer propaneExpirationTimer = ExpirationTimer();
 void vHttpsTask(void* pvParameters) {
   while (true) {
     JsonDocument doc;
@@ -250,6 +249,7 @@ void vHttpsTask(void* pvParameters) {
     }
 
     if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
+      Serial.println("here2");
       if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
         propaneLevel = (int) doc[0]["Level"];
         Serial.print("Propane level = ");
@@ -272,18 +272,32 @@ void vHttpsTask(void* pvParameters) {
 #if defined(ENABLE_LORA_SENDER)
 struct cgm_struct {
   uint16_t mgPerDl;
-  int64_t time;
+  time_t time;
 };
 
-long oldCgmMgPerDl = -1;
-uint loRaGuaranteeTimer = millis();
-void sendCgmData(long mgPerDl) {
-  if ((mgPerDl != oldCgmMgPerDl) ||
-      ((millis() - loRaGuaranteeTimer) > 300000)) {
+long oldSendCgmMgPerDl = -1;
+ExpirationTimer cgmGuaranteeTimer;
+void sendCgmData(long mgPerDl, bool forceUpdate) {
+  if ((mgPerDl != oldSendCgmMgPerDl) ||
+      cgmGuaranteeTimer.isExpired(300000) ||  // Once every five minutes
+      forceUpdate) {
     struct cgm_struct cgm = { mgPerDl & 0xFFFF, time(nullptr) };
     sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
-    loRaGuaranteeTimer = millis();
-    oldCgmMgPerDl = mgPerDl;
+    cgmGuaranteeTimer.reset();
+    oldSendCgmMgPerDl = mgPerDl;
+  }
+}
+
+int oldSendPropaneLevel = -1;
+ExpirationTimer propaneGuaranteeTimer;
+void sendPropaneLevel(int propaneLevel, bool forceUpdate) {
+  if ((propaneLevel != oldSendPropaneLevel) ||
+      cgmGuaranteeTimer.isExpired(3600000) ||  // Once per hour
+      forceUpdate) {
+    byte data = (propaneLevel >= 0 ? propaneLevel & 0xFF : 0xFF);
+    sendPacket(30, (byte*) &data, sizeof(data));  // Propane level in percent
+    propaneGuaranteeTimer.reset();
+    oldSendPropaneLevel = propaneLevel;
   }
 }
 #endif
@@ -304,12 +318,11 @@ void rightJustify(const char* displayBuffer,
 }
 
 #if defined(ENABLE_DISPLAY)
-long oldMgPerDl = -1;
-int oldPropaneLevel = -1;
+long oldDisplayMgPerDl = -1;
 void displayCgmData(long mgPerDl) {
   char displayBuffer[8];
 
-  if (mgPerDl != oldMgPerDl) {
+  if (mgPerDl != oldDisplayMgPerDl) {
 #if defined(DISPLAY_TYPE_LCD_042)
     u8g2.clearBuffer();  // clear the internal memory
     u8g2.setFont(u8g_font_9x18);  // choose a suitable font
@@ -332,7 +345,7 @@ void displayCgmData(long mgPerDl) {
     sprintf(displayBuffer, "%d", mgPerDl);
     rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 3 * 96);
 #endif
-    oldMgPerDl = mgPerDl;
+    oldDisplayMgPerDl = mgPerDl;
   }
 }
 
@@ -361,8 +374,9 @@ void displayClock() {
   }
 }
 
+int oldDisplayPropaneLevel = -1;
 void displayPropaneLevel() {
-  if (propaneLevel != oldPropaneLevel) {
+  if (propaneLevel != oldDisplayPropaneLevel) {
     char displayBuffer[8];
 
     tft.pushImage(20, 6, 64, 64, PROPANE_TANK);
@@ -373,17 +387,13 @@ void displayPropaneLevel() {
     rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 15, 2 * 16);
 #endif
 
-    oldPropaneLevel = propaneLevel;
+    oldDisplayPropaneLevel = propaneLevel;
   }
 }
 
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
-void onReceive(int packetSize) {
-  Serial.println("onReceive");
-}
-
 void receiveLoRaData() {
   // try to parse encrypted message
   int encryptedMessageSize = FspiLoRa.parsePacket();
@@ -424,6 +434,19 @@ void receiveLoRaData() {
   Serial.print(displayBuffer);
 
   switch (messageMetadata.type) {
+    // Boot sync
+    case 2:
+#if defined(ENABLE_LORA_SENDER)
+      {
+        time_t nowSecs = time(nullptr);
+
+        sendPacket(1, (byte*) &nowSecs, sizeof(nowSecs));  // CGM reading
+        sendCgmData(mgPerDl, true);
+        sendPropaneLevel(propaneLevel, true);
+      }
+#endif
+      break;
+
     case 29:
       {
         struct cgm_struct cgm;
@@ -437,6 +460,14 @@ void receiveLoRaData() {
         // mgPerDl = 99;
         sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, cgm.mgPerDl, cgm.time);
         Serial.println(displayBuffer);
+      }
+      break;
+
+    case 30:
+      {
+        sprintf(displayBuffer, "\"messageId %d with propane reading = %d at time %" PRId64 "\"", messageMetadata.counter, (int) data[0], time(nullptr));
+        Serial.println(displayBuffer);
+        propaneLevel = (int) data[0];
       }
       break;
 
@@ -531,14 +562,14 @@ void setup() {
 
   // FspiLoRa.idle();
 #if defined(LORA_ENABLE_RECEIVER)
-  FspiLoRa.onReceive(onReceive);
   FspiLoRa.receive();
 #endif
+
+  propaneExpirationTimer.forceExpired();
 
   setupState = 0x00;
 }
 
-long oldLoRaMgPerDl = -1;
 unsigned long baseMillis = millis();
 void loop() {
   switch (setupState) {
@@ -611,7 +642,8 @@ void loop() {
     // Normal running
     case 0xFF:
 #if defined(ENABLE_LORA_SENDER)
-      sendCgmData(mgPerDl);
+      sendCgmData(mgPerDl, false);
+      sendPropaneLevel(propaneLevel, false);
 #endif
 
 #if defined(ENABLE_DISPLAY)
@@ -628,6 +660,5 @@ void loop() {
       break;
   }
 
-  oldLoRaMgPerDl = mgPerDl;
   taskYIELD();
 }
