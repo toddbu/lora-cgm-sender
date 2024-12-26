@@ -249,7 +249,6 @@ void vHttpsTask(void* pvParameters) {
     }
 
     if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
-      Serial.println("here2");
       if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
         propaneLevel = (int) doc[0]["Level"];
         Serial.print("Propane level = ");
@@ -434,13 +433,13 @@ void receiveLoRaData() {
   Serial.print(displayBuffer);
 
   switch (messageMetadata.type) {
-    // Boot sync
+    // Boot-sync
     case 2:
 #if defined(ENABLE_LORA_SENDER)
       {
         time_t nowSecs = time(nullptr);
 
-        sendPacket(1, (byte*) &nowSecs, sizeof(nowSecs));  // CGM reading
+        sendPacket(1, (byte*) &nowSecs, sizeof(nowSecs));  // Time update
         sendCgmData(mgPerDl, true);
         sendPropaneLevel(propaneLevel, true);
       }
@@ -599,19 +598,26 @@ void loop() {
 
     // Initialize NTP
     case 0x01:
-      Serial.print(F("Waiting for NTP time sync..."));
+      {
+        Serial.print(F("Waiting for NTP time sync..."));
 #if defined(ENABLE_DISPLAY)
-      tft.println("Waiting for NTP time sync...");
+        tft.println("Waiting for NTP time sync...");
 #endif
 
-      setClock();
+        setClock();
 
 #if defined(ENABLE_DISPLAY)
-      tft.fillScreen(TFT_BLACK);
-      drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
+        tft.fillScreen(TFT_BLACK);
+        drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
 #endif
 
-      setupState = 0x02;
+        uint16_t deviceId = DEVICE_ID;
+        Serial.print(F("Broadcasting boot-sync message for device ID = "));
+        Serial.println(deviceId);
+        sendPacket(2, (byte*) &deviceId, sizeof(deviceId));  // Boot-sync message
+
+        setupState = 0x02;
+      }
 
       break;
 
