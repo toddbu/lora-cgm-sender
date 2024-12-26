@@ -53,6 +53,8 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 
   FspiLoRa.endPacket();
 
+  delay(1000);  // Wait for the message to transmit
+
   // FspiLoRa.receive();
 
   // FspiLoRa.sleep();
@@ -437,6 +439,9 @@ void receiveLoRaData() {
     case 2:
 #if defined(ENABLE_LORA_SENDER)
       {
+        sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) data), time(nullptr));
+        Serial.println(displayBuffer);
+
         time_t nowSecs = time(nullptr);
 
         sendPacket(1, (byte*) &nowSecs, sizeof(nowSecs));  // Time update
@@ -456,7 +461,6 @@ void receiveLoRaData() {
         }
 
         mgPerDl = cgm.mgPerDl;
-        // mgPerDl = 99;
         sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, cgm.mgPerDl, cgm.time);
         Serial.println(displayBuffer);
       }
