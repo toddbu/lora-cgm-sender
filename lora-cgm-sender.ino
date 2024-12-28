@@ -27,6 +27,17 @@
 #endif
 
 #if defined(ENABLE_LORA)
+struct clockInfo_struct {
+  time_t time;
+  time_t dstBegins;
+  time_t dstEnds;
+};
+
+struct cgm_struct {
+  uint16_t mgPerDl;
+  time_t time;
+};
+
 LoRaCrypto* loRaCrypto;
 
 LoRaClass FspiLoRa;
@@ -92,7 +103,9 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
 
 // Setting the clock...
-int timezone = -(8 * 3600);
+volatile int timezone = -(8 * 3600);
+volatile time_t dstBegins = -1;
+volatile time_t dstEnds = -1;
 void setClock() {
   configTime(0, 0, "pool.ntp.org");
 
@@ -272,10 +285,15 @@ void vHttpsTask(void* pvParameters) {
 }
 
 #if defined(ENABLE_LORA_SENDER)
-struct cgm_struct {
-  uint16_t mgPerDl;
-  time_t time;
-};
+void sendNetworkTime() {
+  struct clockInfo_struct clockInfo;
+
+  clockInfo.time = time(nullptr);
+  clockInfo.dstBegins = dstBegins;
+  clockInfo.dstEnds = dstEnds;
+
+  sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo));  // Time update
+}
 
 long oldSendCgmMgPerDl = -1;
 ExpirationTimer cgmGuaranteeTimer;
@@ -436,6 +454,16 @@ void receiveLoRaData() {
   Serial.print(displayBuffer);
 
   switch (messageMetadata.type) {
+    // Network time
+    case 1:
+      struct clockInfo_struct clockInfo;
+
+      time(&clockInfo.time);
+      dstBegins = clockInfo.dstBegins;
+      dstEnds = clockInfo.dstEnds;
+
+      break;
+
     // Boot-sync
     case 2:
 #if defined(ENABLE_LORA_SENDER)
@@ -443,9 +471,7 @@ void receiveLoRaData() {
         sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) data), time(nullptr));
         Serial.println(displayBuffer);
 
-        time_t nowSecs = time(nullptr);
-
-        sendPacket(1, (byte*) &nowSecs, sizeof(nowSecs));  // Time update
+        sendNetworkTime();
         sendCgmData(mgPerDl, true);
         sendPropaneLevel(propaneLevel, true);
       }
@@ -457,9 +483,6 @@ void receiveLoRaData() {
         struct cgm_struct cgm;
 
         memcpy(&cgm, data, sizeof(cgm));
-        if (cgm.time == 0) {
-          cgm.time = time(nullptr);
-        }
 
         mgPerDl = cgm.mgPerDl;
         sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, cgm.mgPerDl, cgm.time);
