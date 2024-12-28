@@ -457,8 +457,12 @@ void receiveLoRaData() {
     // Network time
     case 1:
       struct clockInfo_struct clockInfo;
+      memcpy(&clockInfo, data, sizeof(clockInfo));
 
-      time(&clockInfo.time);
+      struct timeval tv;
+      tv.tv_sec = clockInfo.time;
+      tv.tv_usec = 0;
+      settimeofday(&tv, NULL);
       dstBegins = clockInfo.dstBegins;
       dstEnds = clockInfo.dstEnds;
 
