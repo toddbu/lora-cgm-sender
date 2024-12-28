@@ -92,11 +92,12 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
 
 // Setting the clock...
+int timezone = -(8 * 3600);
 void setClock() {
   configTime(0, 0, "pool.ntp.org");
 
   time_t nowSecs = time(nullptr);
-  while (nowSecs < 8 * 3600 * 2) {
+  while (nowSecs < -(timezone * 2)) {
     delay(500);
     Serial.print(F("."));
     taskYIELD();
@@ -357,7 +358,7 @@ void displayClock() {
   struct tm timeinfo;
   gmtime_r((const time_t *) &nowSecs, &timeinfo);
 
-  int hour = timeinfo.tm_hour - 8;
+  int hour = timeinfo.tm_hour + (timezone / 3600);
   if (hour < 0) {
     hour += 24;
   }
