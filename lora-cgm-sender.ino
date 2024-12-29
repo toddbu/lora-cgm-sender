@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <TimeLib.h>
@@ -128,6 +129,7 @@ void setClock() {
 String token;
 long tokenExpires = 0;
 bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
+  char url[255];
   bool doPost = false;
   char postData[128];
 
@@ -135,9 +137,12 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
   HTTPClient https;
   client.setInsecure();
 
+  strncpy(url, endpoint, sizeof(url));
   if (strcmp(requestType, "propane") == 0) {
     String authorization = "Basic " + String(PROPANE_CREDENTIALS_BASE64);
     https.addHeader("Authorization", authorization);
+  } else if (strcmp(requestType, "temperature") == 0) {
+    strncat(url, OPEN_WEATHER_MAP_API_KEY, sizeof(url));
   } else if (memcmp(requestType, "cgm", 3) == 0) {
     bool performLogin = (memcmp(&requestType[3], "Login", 5) == 0);
 
@@ -595,30 +600,53 @@ void setup() {
   setupState = 0x00;
 }
 
+struct deviceMapping_struct {
+  const char* macAddress;
+  uint16_t deviceId;
+};
+
+struct deviceMapping_struct deviceMapping[] = {
+  {"34:b7:da:59:0a:90", 34}
+};
+
 unsigned long baseMillis = millis();
 void loop() {
   switch (setupState) {
     // Initialize the time
     case 0x00:
-      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+      {
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-      Serial.print("Connecting to Wi-Fi");
+        Serial.print("Connecting to Wi-Fi");
 #if defined(ENABLE_DISPLAY)
-      tft.println(" Connecting to Wi-Fi...");
+        tft.println(" Connecting to Wi-Fi...");
 #endif
-      baseMillis = millis();
-      while ((WiFi.status() != WL_CONNECTED) &&
-            ((millis() - baseMillis) < 10000)) {
-        Serial.print(".");
-        delay(1000);
-        taskYIELD();
-      }
-      Serial.println();
-      Serial.print("Connected with IP: ");
-      Serial.println(WiFi.localIP());
-      Serial.println();
+        baseMillis = millis();
+        while ((WiFi.status() != WL_CONNECTED) &&
+              ((millis() - baseMillis) < 10000)) {
+          Serial.print(".");
+          delay(1000);
+          taskYIELD();
+        }
+        Serial.println();
+        Serial.print("Connected with IP: ");
+        Serial.println(WiFi.localIP());
+        Serial.println();
 
-      setupState = 0x01;
+        uint8_t baseMac[6];
+        char macAddress[17];
+        esp_err_t result = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
+        if (result == ESP_OK) {
+          sprintf(macAddress, "%02x:%02x:%02x:%02x:%02x:%02x",
+                  baseMac[0], baseMac[1], baseMac[2],
+                  baseMac[3], baseMac[4], baseMac[5]);
+          Serial.println(macAddress);
+        } else {
+          Serial.println("Failed to read MAC address");
+        }
+
+        setupState = 0x01;
+      }
 
       break;
 
