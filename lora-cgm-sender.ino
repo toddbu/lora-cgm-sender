@@ -100,6 +100,7 @@ TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
 
 #define PROPANE_TIMEOUT (3600 * 6)
+#define TEMPERATURE_TIMEOUT 300
 #endif
 
 // Setting the clock...
@@ -127,6 +128,9 @@ void setClock() {
 String token;
 long tokenExpires = 0;
 bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
+  bool doPost = false;
+  char postData[128];
+
   WiFiClientSecure client;
   HTTPClient https;
   client.setInsecure();
@@ -134,31 +138,6 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
   if (strcmp(requestType, "propane") == 0) {
     String authorization = "Basic " + String(PROPANE_CREDENTIALS_BASE64);
     https.addHeader("Authorization", authorization);
-
-    if (!https.begin(client, endpoint)) {  // HTTPS
-      Serial.println("[HTTPS] Unable to connect");
-      https.end();
-      return false;
-    }
-
-    int httpCode;
-    // Serial.println("[HTTPS] GET...");
-    httpCode = https.GET();
-
-    // httpCode will be negative on error
-    if (httpCode <= 0) {
-      Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
-      https.end();
-      return false;
-    }
-
-    if ((httpCode != HTTP_CODE_OK) &&
-        (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
-      Serial.printf("[HTTPS] response code: %d\n", httpCode);
-      Serial.println("[HTTPS] request not processed due to response code");
-      https.end();
-      return false;
-    }
   } else if (memcmp(requestType, "cgm", 3) == 0) {
     bool performLogin = (memcmp(&requestType[3], "Login", 5) == 0);
 
@@ -168,46 +147,48 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
     https.addHeader("version", "4.9.0");
     https.addHeader("user-agent", "curl/8.4.0");
     https.addHeader("accept", "*/*");
-    if (!performLogin) {
+    if (performLogin) {
+      // Serial.println("[HTTPS] POST...");
+      sprintf(postData, "{\"email\":\"%s\",\"password\":\"%s\"}", CGM_USERNAME, CGM_PASSWORD);
+      doPost = true;
+    } else {
       String authorization = "Bearer " + token;
       https.addHeader("Authorization", authorization);
     }
+  }
 
-    if (!https.begin(client, endpoint)) {  // HTTPS
-      Serial.println("[HTTPS] Unable to connect");
-      https.end();
-      return false;
-    }
+  if (!https.begin(client, endpoint)) {  // HTTPS
+    Serial.println("[HTTPS] Unable to connect");
+    https.end();
+    return false;
+  }
 
-    int httpCode;
-    if (performLogin) {
-      // Serial.println("[HTTPS] POST...");
-      char cgmCredentials[128];
-      sprintf(cgmCredentials, "{\"email\":\"%s\",\"password\":\"%s\"}", CGM_USERNAME, CGM_PASSWORD);
-      httpCode = https.POST(cgmCredentials);
-    } else {
-      // Serial.println("[HTTPS] GET...");
-      httpCode = https.GET();
-    }
+  int httpCode;
+  if (doPost) {
+    // Serial.println("[HTTPS] POST...");
+    httpCode = https.POST(postData);
+  } else {
+    // Serial.println("[HTTPS] GET...");
+    httpCode = https.GET();
+  }
 
-    // httpCode will be negative on error
-    if (httpCode <= 0) {
-      Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
-      https.end();
-      return false;
-    }
+  // httpCode will be negative on error
+  if (httpCode <= 0) {
+    Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
+    https.end();
+    return false;
+  }
 
-    if ((httpCode != HTTP_CODE_OK) &&
-        (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
-      Serial.printf("[HTTPS] response code: %d\n", httpCode);
-      Serial.println("[HTTPS] request not processed due to response code");
-      https.end();
-      return false;
-    }
+  if ((httpCode != HTTP_CODE_OK) &&
+      (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
+    Serial.printf("[HTTPS] response code: %d\n", httpCode);
+    Serial.println("[HTTPS] request not processed due to response code");
+    https.end();
+    return false;
   }
 
   String payload = https.getString();
-  // Serial.println(payload);  // Print the response body
+  Serial.println(payload);  // Print the response body
   deserializeJson(*doc, payload);
 
   https.end();
@@ -230,7 +211,9 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 long httpsTaskHighWaterMark = LONG_MAX;
 volatile long mgPerDl = -1;
 volatile int propaneLevel = -1;
+volatile double temperature = -1.0;
 ExpirationTimer propaneExpirationTimer = ExpirationTimer();
+ExpirationTimer temperatureExpirationTimer = ExpirationTimer();
 void vHttpsTask(void* pvParameters) {
   while (true) {
     JsonDocument doc;
@@ -273,6 +256,16 @@ void vHttpsTask(void* pvParameters) {
       }
 
       propaneExpirationTimer.reset();
+    }
+
+    if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
+      if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", &doc)) {
+        temperature = (((double) doc[0]["main"]["temp"] - 273.15) * (9/5)) + 32;
+        Serial.print("Temperature = ");
+        Serial.println(temperature);
+      }
+
+      temperatureExpirationTimer.reset();
     }
 
     if (uxTaskGetStackHighWaterMark(NULL) < httpsTaskHighWaterMark) {
@@ -597,6 +590,7 @@ void setup() {
 #endif
 
   propaneExpirationTimer.forceExpired();
+  temperatureExpirationTimer.forceExpired();
 
   setupState = 0x00;
 }
