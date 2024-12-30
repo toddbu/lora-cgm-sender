@@ -141,6 +141,7 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
     https.addHeader("Authorization", authorization);
   } else if (strcmp(requestType, "temperature") == 0) {
     strncat(url, OPEN_WEATHER_MAP_API_KEY, sizeof(url));
+    Serial.println(url);
   } else if (memcmp(requestType, "cgm", 3) == 0) {
     bool performLogin = (memcmp(&requestType[3], "Login", 5) == 0);
 
@@ -160,7 +161,7 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
     }
   }
 
-  if (!https.begin(client, endpoint)) {  // HTTPS
+  if (!https.begin(client, url)) {  // HTTPS
     Serial.println("[HTTPS] Unable to connect");
     https.end();
     return false;
@@ -644,7 +645,6 @@ void loop() {
                 baseMac[3], baseMac[4], baseMac[5]);
         Serial.print("MAC address = ");
         Serial.println(macAddress);
-        Serial.println(strlen(macAddress));
 
         uint deviceMappingCount = sizeof(deviceMapping) / sizeof(struct deviceMapping_struct);
         uint i;
