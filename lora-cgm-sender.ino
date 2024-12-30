@@ -141,7 +141,6 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
     https.addHeader("Authorization", authorization);
   } else if (strcmp(requestType, "temperature") == 0) {
     strncat(url, OPEN_WEATHER_MAP_API_KEY, sizeof(url));
-    Serial.println(url);
   } else if (memcmp(requestType, "cgm", 3) == 0) {
     bool performLogin = (memcmp(&requestType[3], "Login", 5) == 0);
 
@@ -152,7 +151,6 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
     https.addHeader("user-agent", "curl/8.4.0");
     https.addHeader("accept", "*/*");
     if (performLogin) {
-      // Serial.println("[HTTPS] POST...");
       sprintf(postData, "{\"email\":\"%s\",\"password\":\"%s\"}", CGM_USERNAME, CGM_PASSWORD);
       doPost = true;
     } else {
@@ -192,7 +190,7 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
   }
 
   String payload = https.getString();
-  Serial.println(payload);  // Print the response body
+  // Serial.println(payload);  // Print the response body
   deserializeJson(*doc, payload);
 
   https.end();
@@ -264,7 +262,7 @@ void vHttpsTask(void* pvParameters) {
 
     if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
       if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", &doc)) {
-        temperature = (((double) doc[0]["main"]["temp"] - 273.15) * (9/5)) + 32;
+        temperature = (((double) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
         Serial.print("Temperature = ");
         Serial.println(temperature);
       }
@@ -296,7 +294,7 @@ long oldSendCgmMgPerDl = -1;
 ExpirationTimer cgmGuaranteeTimer;
 void sendCgmData(long mgPerDl, bool forceUpdate) {
   if ((mgPerDl != oldSendCgmMgPerDl) ||
-      cgmGuaranteeTimer.isExpired(300000) ||  // Once every five minutes
+      cgmGuaranteeTimer.isExpired(600000) ||  // Once every ten minutes per openweathermap.com
       forceUpdate) {
     struct cgm_struct cgm = { mgPerDl & 0xFFFF, time(nullptr) };
     sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
