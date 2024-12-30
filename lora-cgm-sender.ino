@@ -15,6 +15,7 @@
 #include <LoRaCryptoCreds.h>
 #include <ExpirationTimer.h>
 #include "propane-tank.h"
+#include "thermometer.h"
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
@@ -213,7 +214,7 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 long httpsTaskHighWaterMark = LONG_MAX;
 volatile long mgPerDl = -1;
 volatile int propaneLevel = -1;
-volatile double temperature = -1.0;
+volatile double temperature = -100.0;
 ExpirationTimer propaneExpirationTimer = ExpirationTimer();
 ExpirationTimer temperatureExpirationTimer = ExpirationTimer();
 void vHttpsTask(void* pvParameters) {
@@ -394,15 +395,32 @@ void displayPropaneLevel() {
   if (propaneLevel != oldDisplayPropaneLevel) {
     char displayBuffer[8];
 
-    tft.pushImage(20, 6, 64, 64, PROPANE_TANK);
+    tft.pushImage(15, 11, 64, 64, PROPANE_TANK);
     sprintf(displayBuffer, "%d", propaneLevel);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 15, 2 * 16);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 29, 2 * 16);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 15, 2 * 16);
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 20, 2 * 16);
 #endif
 
     oldDisplayPropaneLevel = propaneLevel;
+  }
+}
+
+double oldDisplayTemperature = -100.0;
+void displayTemperature() {
+  if (temperature != oldDisplayTemperature) {
+    char displayBuffer[8];
+
+    tft.pushImage(5, 80, 64, 64, THERMOMETER);
+    sprintf(displayBuffer, "%2.1f", temperature);
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
+#endif
+
+    oldDisplayTemperature = temperature;
   }
 }
 
@@ -724,6 +742,7 @@ void loop() {
       displayCgmData(mgPerDl);
       displayClock();
       displayPropaneLevel();
+      displayTemperature();
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
