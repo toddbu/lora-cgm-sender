@@ -64,9 +64,9 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 
   FspiLoRa.endPacket();
 
-  delay(1000);  // Wait for the message to transmit
+  delay(500);  // Wait for the message to transmit
 
-  // FspiLoRa.receive();
+  FspiLoRa.receive();
 
   // FspiLoRa.sleep();
 }
@@ -395,7 +395,7 @@ void displayPropaneLevel() {
   if (propaneLevel != oldDisplayPropaneLevel) {
     char displayBuffer[8];
 
-    tft.pushImage(15, 11, 64, 64, PROPANE_TANK);
+    tft.pushImage(20, 11, 64, 64, PROPANE_TANK);
     sprintf(displayBuffer, "%d", propaneLevel);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
     rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 29, 2 * 16);
@@ -412,8 +412,8 @@ void displayTemperature() {
   if (temperature != oldDisplayTemperature) {
     char displayBuffer[8];
 
-    tft.pushImage(5, 80, 64, 64, THERMOMETER);
-    sprintf(displayBuffer, "%2.1f", temperature);
+    tft.pushImage(17, 80, 64, 64, THERMOMETER);
+    sprintf(displayBuffer, "%3.0f", temperature);
 #if defined(DISPLAY_TYPE_ST7735_128_160)
     rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
@@ -621,7 +621,9 @@ struct deviceMapping_struct {
 };
 
 struct deviceMapping_struct deviceMapping[] = {
-  {"34:b7:da:59:0a:90", 34}
+  {"24:58:7c:dc:99:d0", 32},  // Large display #1
+  {"00:00:00:00:00:00", 33},  // Small display
+  {"34:b7:da:59:0a:90", 34}  // Large display #2
 };
 
 unsigned long baseMillis = millis();
