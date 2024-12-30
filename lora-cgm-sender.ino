@@ -18,13 +18,11 @@
 
 #define ENABLE_LORA_SENDER
 #define ENABLE_LORA_RECEIVER
-// #define DEVICE_ID 32  // Large #1
-// #define DEVICE_ID 33  // Small
-#define DEVICE_ID 34  // Large #2
 #define ENABLE_DISPLAY
 
 #if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
 #define ENABLE_LORA
+uint16_t deviceId = 0;
 #endif
 
 #if defined(ENABLE_LORA)
@@ -53,7 +51,7 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 
   byte encryptedMessage[255];
   uint encryptedMessageLength;
-  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, DEVICE_ID, messageType, data, dataLength);
+  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, deviceId, messageType, data, dataLength);
   FspiLoRa.write(encryptedMessage, encryptedMessageLength);
 
   Serial.print("Sending packet: ");
@@ -633,17 +631,36 @@ void loop() {
         Serial.println(WiFi.localIP());
         Serial.println();
 
+#if defined(ENABLE_LORA)
         uint8_t baseMac[6];
-        char macAddress[17];
+        char macAddress[18];
         esp_err_t result = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
-        if (result == ESP_OK) {
-          sprintf(macAddress, "%02x:%02x:%02x:%02x:%02x:%02x",
-                  baseMac[0], baseMac[1], baseMac[2],
-                  baseMac[3], baseMac[4], baseMac[5]);
-          Serial.println(macAddress);
-        } else {
+        if (result != ESP_OK) {
           Serial.println("Failed to read MAC address");
         }
+
+        sprintf(macAddress, "%02x:%02x:%02x:%02x:%02x:%02x",
+                baseMac[0], baseMac[1], baseMac[2],
+                baseMac[3], baseMac[4], baseMac[5]);
+        Serial.print("MAC address = ");
+        Serial.println(macAddress);
+        Serial.println(strlen(macAddress));
+
+        uint deviceMappingCount = sizeof(deviceMapping) / sizeof(struct deviceMapping_struct);
+        uint i;
+        for (i = 0; i < deviceMappingCount; i++) {
+          if (strcmp(macAddress, deviceMapping[i].macAddress) == 0) {
+            deviceId = deviceMapping[i].deviceId;
+            Serial.print("Device ID = ");
+            Serial.println(deviceId);
+            break;
+          }
+        }
+
+        if (i == deviceMappingCount) {
+          Serial.println("There is no matching device!!! Using device ID 0");
+        }
+#endif
 
         setupState = 0x01;
       }
@@ -665,7 +682,6 @@ void loop() {
         drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
 #endif
 
-        uint16_t deviceId = DEVICE_ID;
         Serial.print(F("Broadcasting boot-sync message for device ID = "));
         Serial.println(deviceId);
         sendPacket(2, (byte*) &deviceId, sizeof(deviceId));  // Boot-sync message
