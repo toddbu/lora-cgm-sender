@@ -545,10 +545,6 @@ void setup() {
   tft.setTextWrap(false, false);
   tft.fillScreen(TFT_BLACK);
   drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
-  tft.setTextSize(1);
-  tft.setCursor(5, 8, FONT_NUMBER_2);
-  tft.setTextColor(TFT_GREEN, TFT_BLACK);
-  tft.println(" Waiting...");
 #endif
 
   // Turn on backlight LED for ILI9488
@@ -639,22 +635,6 @@ void loop() {
       {
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-        Serial.print("Connecting to Wi-Fi");
-#if defined(ENABLE_DISPLAY)
-        tft.println(" Connecting to Wi-Fi...");
-#endif
-        baseMillis = millis();
-        while ((WiFi.status() != WL_CONNECTED) &&
-              ((millis() - baseMillis) < 10000)) {
-          Serial.print(".");
-          delay(1000);
-          taskYIELD();
-        }
-        Serial.println();
-        Serial.print("Connected with IP: ");
-        Serial.println(WiFi.localIP());
-        Serial.println();
-
 #if defined(ENABLE_LORA)
         uint8_t baseMac[6];
         char macAddress[18];
@@ -685,6 +665,29 @@ void loop() {
         }
 #endif
 
+#if defined(DATA_COLLECTOR)
+        tft.setTextSize(1);
+        tft.setCursor(5, 8, FONT_NUMBER_2);
+        tft.setTextColor(TFT_GREEN, TFT_BLACK);
+        tft.println(" Waiting...");
+
+        Serial.print("Connecting to Wi-Fi");
+#if defined(ENABLE_DISPLAY)
+        tft.println(" Connecting to Wi-Fi...");
+#endif
+        baseMillis = millis();
+        while ((WiFi.status() != WL_CONNECTED) &&
+              ((millis() - baseMillis) < 10000)) {
+          Serial.print(".");
+          delay(1000);
+          taskYIELD();
+        }
+        Serial.println();
+        Serial.print("Connected with IP: ");
+        Serial.println(WiFi.localIP());
+        Serial.println();
+#endif
+
         setupState = 0x01;
       }
 
@@ -693,6 +696,7 @@ void loop() {
     // Initialize NTP
     case 0x01:
       {
+#if defined(DATA_COLLECTOR)
         Serial.print(F("Waiting for NTP time sync..."));
 #if defined(ENABLE_DISPLAY)
         tft.println("Waiting for NTP time sync...");
@@ -708,6 +712,7 @@ void loop() {
         Serial.print(F("Broadcasting boot-sync message for device ID = "));
         Serial.println(deviceId);
         sendPacket(2, (byte*) &deviceId, sizeof(deviceId));  // Boot-sync message
+#endif
 
         setupState = 0x02;
       }
