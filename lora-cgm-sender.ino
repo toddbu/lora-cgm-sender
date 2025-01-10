@@ -220,6 +220,9 @@ long httpsTaskHighWaterMark = LONG_MAX;
 ExpirationTimer propaneExpirationTimer = ExpirationTimer();
 ExpirationTimer temperatureExpirationTimer = ExpirationTimer();
 void vHttpsTask(void* pvParameters) {
+  propaneExpirationTimer.forceExpired();
+  temperatureExpirationTimer.forceExpired();
+
   while (true) {
     JsonDocument doc;
 
@@ -606,11 +609,6 @@ void setup() {
   // FspiLoRa.idle();
 #if defined(LORA_ENABLE_RECEIVER)
   FspiLoRa.receive();
-#endif
-
-#if defined(DATA_COLLECTOR)
-  propaneExpirationTimer.forceExpired();
-  temperatureExpirationTimer.forceExpired();
 #endif
 
   setupState = 0x00;
