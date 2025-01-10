@@ -211,10 +211,12 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 }
 #endif
 
-long httpsTaskHighWaterMark = LONG_MAX;
 volatile long mgPerDl = -1;
 volatile int propaneLevel = -1;
 volatile double temperature = -100.0;
+
+#if defined(DATA_COLLECTOR)
+long httpsTaskHighWaterMark = LONG_MAX;
 ExpirationTimer propaneExpirationTimer = ExpirationTimer();
 ExpirationTimer temperatureExpirationTimer = ExpirationTimer();
 void vHttpsTask(void* pvParameters) {
@@ -279,6 +281,7 @@ void vHttpsTask(void* pvParameters) {
     vTaskDelay(60000);
   }
 }
+#endif
 
 #if defined(ENABLE_LORA_SENDER)
 void sendNetworkTime() {
@@ -609,8 +612,10 @@ void setup() {
   FspiLoRa.receive();
 #endif
 
+#if defined(DATA_COLLECTOR)
   propaneExpirationTimer.forceExpired();
   temperatureExpirationTimer.forceExpired();
+#endif
 
   setupState = 0x00;
 }
@@ -712,6 +717,7 @@ void loop() {
     // Initialize the HTTPS thread
     case 0x02:
       {
+#if defined(DATA_COLLECTOR)
         BaseType_t xReturned;
         TaskHandle_t xHandle = NULL;
 
@@ -727,6 +733,7 @@ void loop() {
         if (xReturned != pdPASS) {
           Serial.println("HttpsTask could not be created");
         }
+#endif
 
         setupState = 0xFF;
       }
