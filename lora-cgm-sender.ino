@@ -17,6 +17,7 @@
 #include "propane-tank.h"
 #include "thermometer.h"
 #include "lora-cgm-sender.ino.globals.h"
+#include "data.h"
 
 #if defined(ENABLE_LORA)
 uint16_t deviceId = 0;
@@ -186,10 +187,6 @@ void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
 }
 #endif
 
-volatile long mgPerDl = -1;
-volatile int propaneLevel = -1;
-volatile double temperature = -100.0;
-
 #if defined(DATA_COLLECTOR)
 long httpsTaskHighWaterMark = LONG_MAX;
 ExpirationTimer propaneExpirationTimer = ExpirationTimer();
@@ -216,11 +213,10 @@ void vHttpsTask(void* pvParameters) {
     if (time(nullptr) < tokenExpires) {
       if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", &doc)) {
         JsonObject connection = doc["data"][0];
-        mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
-        // mgPerDl = 888;
+        data.mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
         const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
         Serial.print("Glucose level = ");
-        Serial.print(mgPerDl);
+        Serial.print(data.mgPerDl);
         Serial.print(" mg/dL at ");
         Serial.println(timestamp);
       }
@@ -232,9 +228,9 @@ void vHttpsTask(void* pvParameters) {
 
     if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
       if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
-        propaneLevel = (int) doc[0]["Level"];
+        data.propaneLevel = (int) doc[0]["Level"];
         Serial.print("Propane level = ");
-        Serial.print(propaneLevel);
+        Serial.print(data.propaneLevel);
         Serial.println("%");
       }
 
@@ -243,9 +239,9 @@ void vHttpsTask(void* pvParameters) {
 
     if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
       if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", &doc)) {
-        temperature = (((double) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
+        data.temperature = (((double) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
         Serial.print("Temperature = ");
-        Serial.println(temperature);
+        Serial.println(data.temperature);
       }
 
       temperatureExpirationTimer.reset();
@@ -372,7 +368,7 @@ void displayClock() {
 }
 
 int oldDisplayPropaneLevel = -1;
-void displayPropaneLevel() {
+void displayPropaneLevel(int propaneLevel) {
   if (propaneLevel != oldDisplayPropaneLevel) {
     char displayBuffer[8];
 
@@ -389,7 +385,7 @@ void displayPropaneLevel() {
 }
 
 double oldDisplayTemperature = -100.0;
-void displayTemperature() {
+void displayTemperature(double temperature) {
   if (temperature != oldDisplayTemperature) {
     char displayBuffer[8];
 
@@ -430,9 +426,9 @@ void receiveLoRaData() {
     encryptedMessage[encryptedMessageLength++] = FspiLoRa.read();
   }
 
-  byte data[encryptedMessageLength];
+  byte messageData[encryptedMessageLength];
   MessageMetadata messageMetadata;
-  uint decryptStatus = loRaCrypto->decrypt(data, encryptedMessage, encryptedMessageLength, &messageMetadata);
+  uint decryptStatus = loRaCrypto->decrypt(messageData, encryptedMessage, encryptedMessageLength, &messageMetadata);
   if (decryptStatus != LoRaCryptoDecryptErrors::DECRYPT_OK) {
     char message[255];
     loRaCrypto->decryptErrorMessage(decryptStatus, message);
@@ -451,7 +447,7 @@ void receiveLoRaData() {
     // Network time
     case 1:
       struct clockInfo_struct clockInfo;
-      memcpy(&clockInfo, data, sizeof(clockInfo));
+      memcpy(&clockInfo, messageData, sizeof(clockInfo));
 
       struct timeval tv;
       tv.tv_sec = clockInfo.time;
@@ -466,12 +462,12 @@ void receiveLoRaData() {
     case 2:
 #if defined(ENABLE_LORA_SENDER)
       {
-        sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) data), time(nullptr));
+        sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) messageData), time(nullptr));
         Serial.println(displayBuffer);
 
         sendNetworkTime();
-        sendCgmData(mgPerDl, true);
-        sendPropaneLevel(propaneLevel, true);
+        sendCgmData(data.mgPerDl, true);
+        sendPropaneLevel(data.propaneLevel, true);
       }
 #endif
       break;
@@ -480,9 +476,9 @@ void receiveLoRaData() {
       {
         struct cgm_struct cgm;
 
-        memcpy(&cgm, data, sizeof(cgm));
+        memcpy(&cgm, messageData, sizeof(cgm));
 
-        mgPerDl = cgm.mgPerDl;
+        data.mgPerDl = cgm.mgPerDl;
         sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, cgm.mgPerDl, cgm.time);
         Serial.println(displayBuffer);
       }
@@ -490,9 +486,9 @@ void receiveLoRaData() {
 
     case 30:
       {
-        sprintf(displayBuffer, "\"messageId %d with propane reading = %d at time %" PRId64 "\"", messageMetadata.counter, (int) data[0], time(nullptr));
+        sprintf(displayBuffer, "\"messageId %d with propane reading = %d at time %" PRId64 "\"", messageMetadata.counter, (int) messageData[0], time(nullptr));
         Serial.println(displayBuffer);
-        propaneLevel = (int) data[0];
+        data.propaneLevel = (int) messageData[0];
       }
       break;
 
@@ -721,15 +717,15 @@ void loop() {
     // Normal running
     case 0xFF:
 #if defined(ENABLE_LORA_SENDER)
-      sendCgmData(mgPerDl, false);
-      sendPropaneLevel(propaneLevel, false);
+      sendCgmData(data.mgPerDl, false);
+      sendPropaneLevel(data.propaneLevel, false);
 #endif
 
 #if defined(ENABLE_DISPLAY)
-      displayCgmData(mgPerDl);
+      displayCgmData(data.mgPerDl);
       displayClock();
-      displayPropaneLevel();
-      displayTemperature();
+      displayPropaneLevel(data.propaneLevel);
+      displayTemperature(data.temperature);
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
