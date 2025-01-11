@@ -1,0 +1,36 @@
+#define DATA_COLLECTOR
+
+#define ENABLE_LORA_SENDER
+#define ENABLE_LORA_RECEIVER
+#if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
+#define ENABLE_LORA
+#endif
+
+#define ENABLE_DISPLAY
+
+// #define DISPLAY_TYPE_LCD_042
+#define DISPLAY_TYPE_TFT
+// #define DISPLAY_TYPE_ST7735_128_160
+#define DISPLAY_TYPE_ILI9488_480_320
+
+#if defined(DISPLAY_TYPE_LCD_042)
+#define SDA_PIN 5
+#define SCL_PIN 6
+
+#elif defined(DISPLAY_TYPE_TFT)
+#define FONT_NUMBER 7
+#define FONT_NUMBER_2 2
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+#define FONT_SIZE 2
+#define FONT_SIZE_CLOCK 1
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
+#define FONT_SIZE 3
+#define FONT_SIZE_CLOCK 3
+#endif
+#define FONT_SIZE_PROPANE 1
+#endif
+
+#if defined(DATA_COLLECTOR)
+#define PROPANE_TIMEOUT (3600 * 6)
+#define TEMPERATURE_TIMEOUT 300
+#endif

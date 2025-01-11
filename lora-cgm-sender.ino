@@ -16,13 +16,9 @@
 #include <ExpirationTimer.h>
 #include "propane-tank.h"
 #include "thermometer.h"
+#include "lora-cgm-sender.ino.globals.h"
 
-#define ENABLE_LORA_SENDER
-#define ENABLE_LORA_RECEIVER
-#define ENABLE_DISPLAY
-
-#if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
-#define ENABLE_LORA
+#if defined(ENABLE_LORA)
 uint16_t deviceId = 0;
 #endif
 
@@ -41,7 +37,6 @@ struct cgm_struct {
 LoRaCrypto* loRaCrypto;
 
 LoRaClass FspiLoRa;
-// #define FspiLoRa LoRa
 uint setupState = 0x00;
 #endif
 
@@ -73,34 +68,14 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 #endif
 
 #if defined(ENABLE_DISPLAY)
-// #define DISPLAY_TYPE_LCD_042
-#define DISPLAY_TYPE_TFT
-// #define DISPLAY_TYPE_ST7735_128_160
-#define DISPLAY_TYPE_ILI9488_480_320
-
 #if defined(DISPLAY_TYPE_LCD_042)
 #include <U8g2lib.h>
 #include <Wire.h>
-#define SDA_PIN 5
-#define SCL_PIN 6
 U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
 #elif defined(DISPLAY_TYPE_TFT)
-#define FONT_NUMBER 7
-#define FONT_NUMBER_2 2
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-#define FONT_SIZE 2
-#define FONT_SIZE_CLOCK 1
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
-#define FONT_SIZE 3
-#define FONT_SIZE_CLOCK 3
-#endif
-#define FONT_SIZE_PROPANE 1
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
 #endif
-
-#define PROPANE_TIMEOUT (3600 * 6)
-#define TEMPERATURE_TIMEOUT 300
 #endif
 
 // Setting the clock...
