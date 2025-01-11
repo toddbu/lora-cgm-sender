@@ -14,10 +14,16 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 #include <ExpirationTimer.h>
-#include "propane-tank.h"
-#include "thermometer.h"
+
 #include "lora-cgm-sender.ino.globals.h"
+
 #include "data.h"
+volatile struct data_struct data = {time(nullptr), -1, -1, -100.0};
+
+#if defined(ENABLE_DISPLAY)
+#include "Display.h"
+Display* display;
+#endif
 
 #if defined(ENABLE_LORA)
 uint16_t deviceId = 0;
@@ -66,17 +72,6 @@ void sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 
   // FspiLoRa.sleep();
 }
-#endif
-
-#if defined(ENABLE_DISPLAY)
-#if defined(DISPLAY_TYPE_LCD_042)
-#include <U8g2lib.h>
-#include <Wire.h>
-U8G2_SSD1306_72X40_ER_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
-#elif defined(DISPLAY_TYPE_TFT)
-#include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
-TFT_eSPI tft = TFT_eSPI();  // Invoke custom library
-#endif
 #endif
 
 // Setting the clock...
@@ -174,18 +169,6 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
 
   return true;
 }
-
-#if defined(ENABLE_DISPLAY)
-void drawBorder(int32_t x, int32_t y, int32_t w, int32_t h, int32_t color) {
-  float wd = 6.0;
-  float radius = wd / 2.0;
-
-  tft.drawWideLine(x + radius, y + radius, w - radius, y + radius, wd, color);
-  tft.drawWideLine(x + radius, y + radius, x + radius, h - radius, wd, color);
-  tft.drawWideLine(w - radius, y + radius, w - radius, h - radius, wd, color);
-  tft.drawWideLine(x + radius, h - radius, w - radius, h - radius, wd, color);
-}
-#endif
 
 #if defined(DATA_COLLECTOR)
 long httpsTaskHighWaterMark = LONG_MAX;
@@ -295,114 +278,6 @@ void sendPropaneLevel(int propaneLevel, bool forceUpdate) {
 }
 #endif
 
-void rightJustify(const char* displayBuffer,
-                  uint8_t font,
-                  uint8_t fontSize,
-                  uint32_t color,
-                  int16_t baseX,
-                  int16_t baseY,
-                  int16_t textWidth) {
-  tft.setTextSize(fontSize);
-  tft.setTextColor(color, TFT_BLACK);
-  tft.setTextDatum(TR_DATUM);
-  tft.setTextPadding(textWidth);
-  tft.drawString(displayBuffer, baseX, baseY, font);
-  tft.setTextDatum(TL_DATUM);
-}
-
-#if defined(ENABLE_DISPLAY)
-long oldDisplayMgPerDl = -1;
-void displayCgmData(long mgPerDl) {
-  char displayBuffer[8];
-
-  if (mgPerDl != oldDisplayMgPerDl) {
-#if defined(DISPLAY_TYPE_LCD_042)
-    u8g2.clearBuffer();  // clear the internal memory
-    u8g2.setFont(u8g_font_9x18);  // choose a suitable font
-    sprintf(displayBuffer, "%d", mgPerDl);
-    u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
-    u8g2.sendBuffer();  // transfer internal memory to the display
-#elif defined(DISPLAY_TYPE_TFT)
-    uint32_t color;
-    if ((mgPerDl < 70) ||
-        (mgPerDl > 250)) {
-      color = TFT_RED;
-    } else if ((mgPerDl >= 70 && mgPerDl < 80) ||
-                (mgPerDl > 150 && mgPerDl <= 250)) {
-      color = TFT_YELLOW;
-    } else {
-      color = TFT_GREEN;
-    }
-    drawBorder(0, 0, tft.width(), tft.height(), color);
-
-    sprintf(displayBuffer, "%d", mgPerDl);
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 3 * 96);
-#endif
-    oldDisplayMgPerDl = mgPerDl;
-  }
-}
-
-char oldDisplayTime[8] = {'\0'};
-void displayClock() {
-  char displayBuffer[8];
-  time_t nowSecs = time(nullptr);
-  struct tm timeinfo;
-  gmtime_r((const time_t *) &nowSecs, &timeinfo);
-
-  int hour = timeinfo.tm_hour + (timezone / 3600);
-  if (hour < 0) {
-    hour += 24;
-  }
-  sprintf(displayBuffer, "%2d:%02d", hour, timeinfo.tm_min);
-
-  if (strcmp(displayBuffer, oldDisplayTime) != 0) {
-    Serial.print("Current time: ");
-    Serial.print(asctime(&timeinfo));
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 142, 75, 4.5 * 96);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 462, 160, 4.5 * 96);
-#endif
-    strcpy(oldDisplayTime, displayBuffer);
-  }
-}
-
-int oldDisplayPropaneLevel = -1;
-void displayPropaneLevel(int propaneLevel) {
-  if (propaneLevel != oldDisplayPropaneLevel) {
-    char displayBuffer[8];
-
-    tft.pushImage(20, 11, 64, 64, PROPANE_TANK);
-    sprintf(displayBuffer, "%d", propaneLevel);
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 29, 2 * 16);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 20, 2 * 16);
-#endif
-
-    oldDisplayPropaneLevel = propaneLevel;
-  }
-}
-
-double oldDisplayTemperature = -100.0;
-void displayTemperature(double temperature) {
-  if (temperature != oldDisplayTemperature) {
-    char displayBuffer[8];
-
-    tft.pushImage(17, 80, 64, 64, THERMOMETER);
-    sprintf(displayBuffer, "%3.0f", temperature);
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
-#endif
-
-    oldDisplayTemperature = temperature;
-  }
-}
-
-#endif
-
 #if defined(ENABLE_LORA_RECEIVER)
 void receiveLoRaData() {
   // try to parse encrypted message
@@ -504,26 +379,7 @@ SPIClass spi2(FSPI);
 #endif
 void setup() {
 #if defined(ENABLE_DISPLAY)
-#if defined(DISPLAY_TYPE_LCD_042)
-  Wire.begin(SDA_PIN, SCL_PIN);
-  u8g2.begin();
-#elif defined(DISPLAY_TYPE_TFT)
-  tft.init();
-  // tft.init(INITR_BLACKTAB);
-
-  #if defined(DISPLAY_TYPE_ST7735_128_160)
-  tft.setRotation(3);
-  #else
-  tft.setRotation(1);
-  #endif
-  tft.setTextWrap(false, false);
-  tft.fillScreen(TFT_BLACK);
-  drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
-#endif
-
-  // Turn on backlight LED for ILI9488
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH);
+  display = new Display(&data);
 #endif
 
   Serial.begin(9600);
@@ -635,14 +491,9 @@ void loop() {
 #endif
 
 #if defined(DATA_COLLECTOR)
-        tft.setTextSize(1);
-        tft.setCursor(5, 8, FONT_NUMBER_2);
-        tft.setTextColor(TFT_GREEN, TFT_BLACK);
-        tft.println(" Waiting...");
-
         Serial.print("Connecting to Wi-Fi");
 #if defined(ENABLE_DISPLAY)
-        tft.println(" Connecting to Wi-Fi...");
+        // _tft->println(" Connecting to Wi-Fi...");
 #endif
         baseMillis = millis();
         while ((WiFi.status() != WL_CONNECTED) &&
@@ -668,14 +519,14 @@ void loop() {
 #if defined(DATA_COLLECTOR)
         Serial.print(F("Waiting for NTP time sync..."));
 #if defined(ENABLE_DISPLAY)
-        tft.println("Waiting for NTP time sync...");
+        // _tft->println("Waiting for NTP time sync...");
 #endif
 
         setClock();
 
 #if defined(ENABLE_DISPLAY)
-        tft.fillScreen(TFT_BLACK);
-        drawBorder(0, 0, tft.width(), tft.height(), TFT_GREEN);
+        // _tft->fillScreen(TFT_BLACK);
+        // drawBorder(0, 0, _tft->width(), _tft->height(), TFT_GREEN);
 #endif
 
         Serial.print(F("Broadcasting boot-sync message for device ID = "));
@@ -716,16 +567,15 @@ void loop() {
 
     // Normal running
     case 0xFF:
+      data.time = time(nullptr);
+
 #if defined(ENABLE_LORA_SENDER)
       sendCgmData(data.mgPerDl, false);
       sendPropaneLevel(data.propaneLevel, false);
 #endif
 
 #if defined(ENABLE_DISPLAY)
-      displayCgmData(data.mgPerDl);
-      displayClock();
-      displayPropaneLevel(data.propaneLevel);
-      displayTemperature(data.temperature);
+      display->loop();
 #endif
 
 #if defined(ENABLE_LORA_RECEIVER)
