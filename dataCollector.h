@@ -1,3 +1,3 @@
 #pragma once
 
-extern void vHttpsTask(void* pvParameters);
+void vHttpsTask(void* pvParameters);
