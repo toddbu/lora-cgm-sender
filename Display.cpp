@@ -121,19 +121,19 @@ void Display::resetDisplay() {
 }
 
 void Display::_displayClock() {
-  char displayBuffer[8];
-  time_t nowSecs = _data->time;
-  struct tm timeinfo;
-  gmtime_r((const time_t *) &nowSecs, &timeinfo);
+  if ((_data->time / 60) !=  (_oldData->time / 60)) {
+    char displayBuffer[8];
+    time_t nowSecs = _data->time;
+    struct tm timeinfo;
+    gmtime_r((const time_t *) &nowSecs, &timeinfo);
 
-  const int timezone = -28800;
-  int hour = timeinfo.tm_hour + (timezone / 3600);
-  if (hour < 0) {
-    hour += 24;
-  }
-  sprintf(displayBuffer, "%2d:%02d", hour, timeinfo.tm_min);
+    const int timezone = -28800;
+    int hour = timeinfo.tm_hour + (timezone / 3600);
+    if (hour < 0) {
+      hour += 24;
+    }
+    sprintf(displayBuffer, "%2d:%02d", hour, timeinfo.tm_min);
 
-  if (_data->time - _oldData->time > 60) {
     Serial.print("Current time: ");
     Serial.print(asctime(&timeinfo));
 #if defined(DISPLAY_TYPE_ST7735_128_160)

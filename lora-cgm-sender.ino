@@ -18,7 +18,7 @@
 #include "lora-cgm-sender.ino.globals.h"
 
 #include "data.h"
-volatile struct data_struct data = {time(nullptr), -1, -1, -100.0};
+volatile struct data_struct data = {0, -1, -1, -100.0};
 
 #if defined(ENABLE_DISPLAY)
 #include "Display.h"
