@@ -8,8 +8,3 @@
 #if defined(ENABLE_LORA_SENDER) || defined(ENABLE_LORA_RECEIVER)
 #define ENABLE_LORA
 #endif
-
-#if defined(DATA_COLLECTOR)
-#define PROPANE_TIMEOUT (3600 * 6)
-#define TEMPERATURE_TIMEOUT 300
-#endif
