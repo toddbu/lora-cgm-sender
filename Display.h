@@ -37,4 +37,8 @@ class Display {
 
     void setup();
     void loop();
+
+    void print(const char* val);
+    void println(const char* val);
+    void resetDisplay();
 };

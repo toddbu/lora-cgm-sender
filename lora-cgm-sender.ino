@@ -380,6 +380,7 @@ SPIClass spi2(FSPI);
 void setup() {
 #if defined(ENABLE_DISPLAY)
   display = new Display(&data);
+  display->setup();
 #endif
 
   Serial.begin(9600);
@@ -493,7 +494,7 @@ void loop() {
 #if defined(DATA_COLLECTOR)
         Serial.print("Connecting to Wi-Fi");
 #if defined(ENABLE_DISPLAY)
-        // _tft->println(" Connecting to Wi-Fi...");
+        display->println(" Connecting to Wi-Fi...");
 #endif
         baseMillis = millis();
         while ((WiFi.status() != WL_CONNECTED) &&
@@ -519,14 +520,13 @@ void loop() {
 #if defined(DATA_COLLECTOR)
         Serial.print(F("Waiting for NTP time sync..."));
 #if defined(ENABLE_DISPLAY)
-        // _tft->println("Waiting for NTP time sync...");
+        display->println("Waiting for NTP time sync...");
 #endif
 
         setClock();
 
 #if defined(ENABLE_DISPLAY)
-        // _tft->fillScreen(TFT_BLACK);
-        // drawBorder(0, 0, _tft->width(), _tft->height(), TFT_GREEN);
+        display->resetDisplay();
 #endif
 
         Serial.print(F("Broadcasting boot-sync message for device ID = "));

@@ -107,6 +107,19 @@ void Display::loop() {
   _displayTemperature();
 };
 
+void Display::print(const char* val) {
+  _tft->print(val);
+}
+
+void Display::println(const char* val) {
+  _tft->println(val);
+}
+
+void Display::resetDisplay() {
+  _tft->fillScreen(TFT_BLACK);
+  drawBorder(_tft, 0, 0, _tft->width(), _tft->height(), TFT_GREEN);
+}
+
 void Display::_displayClock() {
   char displayBuffer[8];
   time_t nowSecs = _data->time;
