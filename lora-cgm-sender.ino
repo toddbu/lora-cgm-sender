@@ -27,14 +27,11 @@ SPIClass spi2(FSPI);
 uint setupState = 0x00;
 
 // Setting the clock...
-volatile int timezone = -(8 * 3600);
-volatile time_t dstBegins = -1;
-volatile time_t dstEnds = -1;
 void setClock() {
   configTime(0, 0, "pool.ntp.org");
 
   time_t nowSecs = time(nullptr);
-  while (nowSecs < -(timezone * 2)) {
+  while (time(nullptr) < 60) {  // Wait no more than 60 seconds for the clock to start
     delay(500);
     Serial.print(F("."));
     taskYIELD();
@@ -67,7 +64,7 @@ void setup() {
   Serial.println("Starting...");
 
 #if defined(ENABLE_SYNC)
-  // spi2.begin(SCK, MISO, MOSI, SS); // ESP32-C3-Zero
+  // spi2.begin(SCK, MISO, MOSI, SS);
   spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
   syncX = new Sync(&data, &spi2);
   syncX->setup();
@@ -84,7 +81,6 @@ void loop() {
     // Initialize the time
     case 0x00:
       {
-
 #if defined(DATA_COLLECTOR)
         Serial.print("Connecting to Wi-Fi");
 #if defined(ENABLE_DISPLAY)
@@ -122,11 +118,6 @@ void loop() {
 #if defined(ENABLE_DISPLAY)
         display->resetDisplay();
 #endif
-
-        Serial.print(F("Broadcasting boot-sync message for device ID = "));
-        uint16_t deviceId = syncX->deviceId();
-        Serial.println(deviceId);
-        // sendPacket(2, (byte*) &deviceId, sizeof(deviceId));  // Boot-sync message
 #endif
 
         setupState = 0x02;

@@ -127,7 +127,7 @@ void Display::_displayClock() {
     struct tm timeinfo;
     gmtime_r((const time_t *) &nowSecs, &timeinfo);
 
-    const int timezone = -28800;
+    volatile const int timezone = -28800;
     int hour = timeinfo.tm_hour + (timezone / 3600);
     if (hour < 0) {
       hour += 24;

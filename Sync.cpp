@@ -105,6 +105,12 @@ void Sync::setup() {
 #if defined(ENABLE_SYNC_RECEIVER)
   // _loRa->receive();
 #endif
+
+  Serial.print(F("Broadcasting boot-sync message for device ID = "));
+  Serial.println(_deviceId);
+#if defined(ENABLE_SYNC_SENDER)
+  _sendPacket(2, (byte*) &_deviceId, sizeof(_deviceId));  // Boot-sync message
+#endif
 }
 
 void Sync::loop() {
@@ -151,7 +157,7 @@ void Sync::_sendNetworkTime() {
   clockInfo.dstBegins = dstBegins;
   clockInfo.dstEnds = dstEnds;
 
-  sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo));  // Time update
+  _sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo));  // Time update
 }
 
 void Sync::_sendCgmData(long mgPerDl, bool forceUpdate) {
@@ -159,7 +165,7 @@ void Sync::_sendCgmData(long mgPerDl, bool forceUpdate) {
       cgmGuaranteeTimer.isExpired(600000) ||  // Once every ten minutes per openweathermap.com
       forceUpdate) {
     struct cgm_struct cgm = { _data->mgPerDl & 0xFFFF, time(nullptr) };
-    sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
+    _sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
     cgmGuaranteeTimer.reset();
     _oldData->mgPerDl = _data->mgPerDl;
   }
@@ -170,7 +176,7 @@ void Sync::_sendPropaneLevel(int propaneLevel, bool forceUpdate) {
       _propaneGuaranteeTimer.isExpired(3600000) ||  // Once per hour
       forceUpdate) {
     byte data = (_data->propaneLevel >= 0 ? _data->propaneLevel & 0xFF : 0xFF);
-    sendPacket(30, (byte*) &data, sizeof(data));  // Propane level in percent
+    _sendPacket(30, (byte*) &data, sizeof(data));  // Propane level in percent
     _propaneGuaranteeTimer.reset();
     _oldData->propaneLevel = _data->propaneLevel;
   }
