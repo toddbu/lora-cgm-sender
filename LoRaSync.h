@@ -9,7 +9,7 @@
 #include <LoRaCrypto.h>
 #include <LoRaCryptoCreds.h>
 
-class Sync {
+class LoRaSync {
   private:
     volatile struct data_struct* _data;
     struct data_struct* _oldData;
@@ -26,8 +26,8 @@ class Sync {
     void _receiveLoRaData();
 
   public:
-    Sync(volatile struct data_struct* data, SPIClass* spi);
-    ~Sync();
+    LoRaSync(volatile struct data_struct* data, SPIClass* spi);
+    ~LoRaSync();
 
     void setup();
     void loop();

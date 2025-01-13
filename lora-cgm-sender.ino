@@ -19,8 +19,8 @@ Display* display;
 #endif
 
 #if defined(ENABLE_SYNC)
-#include "Sync.h"
-Sync* syncX;
+#include "LoRaSync.h"
+LoRaSync* loRaSync;
 SPIClass spi2(FSPI);
 #endif
 
@@ -66,8 +66,8 @@ void setup() {
 #if defined(ENABLE_SYNC)
   // spi2.begin(SCK, MISO, MOSI, SS);
   spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
-  syncX = new Sync(&data, &spi2);
-  syncX->setup();
+  loRaSync = new LoRaSync(&data, &spi2);
+  loRaSync->setup();
 #endif
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -156,7 +156,7 @@ void loop() {
       data.time = time(nullptr);
 
 #if defined(ENABLE_SYNC)
-      syncX->loop();
+      loRaSync->loop();
 #endif
 
 #if defined(ENABLE_DISPLAY)

@@ -1,7 +1,7 @@
 #include <esp_wifi.h>
 #include <Crypto.h>
 #include <ChaCha.h>
-#include "Sync.h"
+#include "LoRaSync.h"
 
 struct deviceMapping_struct {
   const char* macAddress;
@@ -27,7 +27,7 @@ struct cgm_struct {
 
 LoRaCrypto* loRaCrypto;
 
-Sync::Sync(volatile struct data_struct* data, SPIClass* spi) {
+LoRaSync::LoRaSync(volatile struct data_struct* data, SPIClass* spi) {
   _data = data;
   _oldData = (struct data_struct*) malloc(sizeof(struct data_struct));
   memcpy(_oldData, (const void*) _data, sizeof(struct data_struct));
@@ -36,13 +36,13 @@ Sync::Sync(volatile struct data_struct* data, SPIClass* spi) {
   _loRa = new LoRaClass();
 }
 
-Sync::~Sync() {
+LoRaSync::~LoRaSync() {
   delete _loRa;
 
   free(_oldData);
 }
 
-void Sync::setup() {
+void LoRaSync::setup() {
   _loRa->setSPI(*_spi);
   
   // _loRa->setPins(ss, reset, dio0);
@@ -113,7 +113,7 @@ void Sync::setup() {
 #endif
 }
 
-void Sync::loop() {
+void LoRaSync::loop() {
 #if defined(ENABLE_SYNC_SENDER)
   _sendCgmData(data.mgPerDl, false);
   _sendPropaneLevel(data.propaneLevel, false);
@@ -125,7 +125,7 @@ void Sync::loop() {
 }
 
 #if defined(ENABLE_SYNC_SENDER)
-void Sync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
+void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   // _loRa->idle();
   _loRa->beginPacket();
 
@@ -150,7 +150,7 @@ void Sync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   // _loRa->sleep();
 }
 
-void Sync::_sendNetworkTime() {
+void LoRaSync::_sendNetworkTime() {
   struct clockInfo_struct clockInfo;
 
   clockInfo.time = time(nullptr);
@@ -160,7 +160,7 @@ void Sync::_sendNetworkTime() {
   _sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo));  // Time update
 }
 
-void Sync::_sendCgmData(long mgPerDl, bool forceUpdate) {
+void LoRaSync::_sendCgmData(long mgPerDl, bool forceUpdate) {
   if ((_data->mgPerDl != _oldData->mgPerDl) ||
       cgmGuaranteeTimer.isExpired(600000) ||  // Once every ten minutes per openweathermap.com
       forceUpdate) {
@@ -171,7 +171,7 @@ void Sync::_sendCgmData(long mgPerDl, bool forceUpdate) {
   }
 }
 
-void Sync::_sendPropaneLevel(int propaneLevel, bool forceUpdate) {
+void LoRaSync::_sendPropaneLevel(int propaneLevel, bool forceUpdate) {
   if ((_data->propaneLevel != _oldData->propaneLevel) ||
       _propaneGuaranteeTimer.isExpired(3600000) ||  // Once per hour
       forceUpdate) {
@@ -184,7 +184,7 @@ void Sync::_sendPropaneLevel(int propaneLevel, bool forceUpdate) {
 #endif
 
 #if defined(ENABLE_SYNC_RECEIVER)
-void Sync::_receiveLoRaData() {
+void LoRaSync::_receiveLoRaData() {
   // try to parse encrypted message
   int encryptedMessageSize = _loRa->parsePacket();
   // Serial.println(encryptedMessageSize);
