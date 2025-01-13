@@ -3,6 +3,8 @@
 #include <ChaCha.h>
 #include "LoRaSync.h"
 
+#include "lora-cgm-sender.ino.globals.h"
+
 struct deviceMapping_struct {
   const char* macAddress;
   uint16_t deviceId;
@@ -103,7 +105,7 @@ void LoRaSync::setup() {
 
   // _loRa->idle();
 #if defined(ENABLE_SYNC_RECEIVER)
-  // _loRa->receive();
+  _loRa->receive();
 #endif
 
   Serial.print(F("Broadcasting boot-sync message for device ID = "));
@@ -115,8 +117,8 @@ void LoRaSync::setup() {
 
 void LoRaSync::loop() {
 #if defined(ENABLE_SYNC_SENDER)
-  _sendCgmData(data.mgPerDl, false);
-  _sendPropaneLevel(data.propaneLevel, false);
+  _sendCgmData(false);
+  _sendPropaneLevel(false);
 #endif
 #if defined(ENABLE_SYNC_RECEIVER)
   // Serial.println("ENABLE_SYNC_RECEIVER");
@@ -131,7 +133,7 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 
   byte encryptedMessage[255];
   uint encryptedMessageLength;
-  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, deviceId, messageType, data, dataLength);
+  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, _deviceId, messageType, data, dataLength);
   _loRa->write(encryptedMessage, encryptedMessageLength);
 
   Serial.print("Sending packet: ");
@@ -141,7 +143,7 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   Serial.print(", length = ");
   Serial.println(encryptedMessageLength);
 
-  _spi->endPacket();
+  _loRa->endPacket();
 
   delay(500);  // Wait for the message to transmit
 
@@ -154,24 +156,24 @@ void LoRaSync::_sendNetworkTime() {
   struct clockInfo_struct clockInfo;
 
   clockInfo.time = time(nullptr);
-  clockInfo.dstBegins = dstBegins;
-  clockInfo.dstEnds = dstEnds;
+  clockInfo.dstBegins = _dstBegins;
+  clockInfo.dstEnds = _dstEnds;
 
   _sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo));  // Time update
 }
 
-void LoRaSync::_sendCgmData(long mgPerDl, bool forceUpdate) {
+void LoRaSync::_sendCgmData(bool forceUpdate) {
   if ((_data->mgPerDl != _oldData->mgPerDl) ||
-      cgmGuaranteeTimer.isExpired(600000) ||  // Once every ten minutes per openweathermap.com
+      _cgmGuaranteeTimer.isExpired(600000) ||  // Once every ten minutes
       forceUpdate) {
     struct cgm_struct cgm = { _data->mgPerDl & 0xFFFF, time(nullptr) };
     _sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
-    cgmGuaranteeTimer.reset();
+    _cgmGuaranteeTimer.reset();
     _oldData->mgPerDl = _data->mgPerDl;
   }
 }
 
-void LoRaSync::_sendPropaneLevel(int propaneLevel, bool forceUpdate) {
+void LoRaSync::_sendPropaneLevel(bool forceUpdate) {
   if ((_data->propaneLevel != _oldData->propaneLevel) ||
       _propaneGuaranteeTimer.isExpired(3600000) ||  // Once per hour
       forceUpdate) {
@@ -233,8 +235,8 @@ void LoRaSync::_receiveLoRaData() {
       tv.tv_sec = clockInfo.time;
       tv.tv_usec = 0;
       settimeofday(&tv, NULL);
-      dstBegins = clockInfo.dstBegins;
-      dstEnds = clockInfo.dstEnds;
+      _dstBegins = clockInfo.dstBegins;
+      _dstEnds = clockInfo.dstEnds;
 
       break;
 
@@ -245,9 +247,9 @@ void LoRaSync::_receiveLoRaData() {
         sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) messageData), time(nullptr));
         Serial.println(displayBuffer);
 
-        sendNetworkTime();
-        sendCgmData(true);
-        sendPropaneLevel(true);
+        _sendNetworkTime();
+        _sendCgmData(true);
+        _sendPropaneLevel(true);
       }
 #endif
       break;

@@ -16,6 +16,8 @@ class LoRaSync {
     uint16_t _deviceId = 0;
     SPIClass* _spi;
     LoRaClass* _loRa;
+    time_t _dstBegins = 0;
+    time_t _dstEnds = 0;
     ExpirationTimer _cgmGuaranteeTimer;
     ExpirationTimer _propaneGuaranteeTimer;
 
