@@ -149,61 +149,69 @@ void Display::_displayCgmData() {
   char displayBuffer[8];
 
   long mgPerDl = _data->mgPerDl;
-  if (mgPerDl != _oldData->mgPerDl) {
-#if defined(DISPLAY_TYPE_LCD_042)
-    u8g2.clearBuffer();  // clear the internal memory
-    u8g2.setFont(u8g_font_9x18);  // choose a suitable font
+  if (mgPerDl != -1) {
     sprintf(displayBuffer, "%d", mgPerDl);
-    u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
-    u8g2.sendBuffer();  // transfer internal memory to the display
-#elif defined(DISPLAY_TYPE_TFT)
-    uint32_t color;
-    if ((mgPerDl < 70) ||
-        (mgPerDl > 250)) {
-      color = TFT_RED;
-    } else if ((mgPerDl >= 70 && mgPerDl < 80) ||
-                (mgPerDl > 150 && mgPerDl <= 250)) {
-      color = TFT_YELLOW;
-    } else {
-      color = TFT_GREEN;
-    }
-    drawBorder(_tft, 0, 0, _tft->width(), _tft->height(), color);
-
-    sprintf(displayBuffer, "%d", mgPerDl);
-    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 3 * 96);
-#endif
-    _oldData->mgPerDl = mgPerDl;
+  } else {
+    strcpy(displayBuffer, "---");
   }
+
+#if defined(DISPLAY_TYPE_LCD_042)
+  u8g2.clearBuffer();  // clear the internal memory
+  u8g2.setFont(u8g_font_9x18);  // choose a suitable font
+  u8g2.drawStrX2(0, 20, displayBuffer);  // write something to the internal memory
+  u8g2.sendBuffer();  // transfer internal memory to the display
+#elif defined(DISPLAY_TYPE_TFT)
+  uint32_t color;
+  if (mgPerDl == -1) {
+    color = TFT_GREEN;
+  } else if ((mgPerDl < 70) ||
+             (mgPerDl > 250)) {
+    color = TFT_RED;
+  } else if ((mgPerDl >= 70 && mgPerDl < 80) ||
+              (mgPerDl > 150 && mgPerDl <= 250)) {
+    color = TFT_YELLOW;
+  } else {
+    color = TFT_GREEN;
+  }
+  drawBorder(_tft, 0, 0, _tft->width(), _tft->height(), color);
+
+  rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 3 * 96);
+#endif
+  _oldData->mgPerDl = mgPerDl;
 }
 
 void Display::_displayPropaneLevel() {
-  if (_data->propaneLevel != _oldData->propaneLevel) {
-    char displayBuffer[8];
+  char displayBuffer[8];
 
-    _tft->pushImage(20, 11, 64, 64, PROPANE_TANK);
+  _tft->pushImage(20, 11, 64, 64, PROPANE_TANK);
+  if (_data->propaneLevel > 0) {
     sprintf(displayBuffer, "%d", _data->propaneLevel);
+  } else {
+    strcpy(displayBuffer, "--");
+  }
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 29, 2 * 16);
+  rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 29, 2 * 16);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 20, 2 * 16);
+  rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 20, 2 * 16);
 #endif
 
-    _oldData->propaneLevel = _data->propaneLevel;
-  }
+  _oldData->propaneLevel = _data->propaneLevel;
 }
 
 void Display::_displayTemperature() {
-  if (_data->temperature != _oldData->temperature) {
-    char displayBuffer[8];
+  char displayBuffer[8];
 
-    _tft->pushImage(17, 80, 64, 64, THERMOMETER);
+  _tft->pushImage(17, 80, 64, 64, THERMOMETER);
+  if (_data->temperature > -100.0) {
     sprintf(displayBuffer, "%3.0f", _data->temperature);
+  } else {
+    strcpy(displayBuffer, "--");
+  }
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
+  rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
-    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
+  rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
 #endif
 
-    _oldData->temperature = _data->temperature;
-  }
+  _oldData->temperature = _data->temperature;
 }
