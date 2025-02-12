@@ -93,60 +93,63 @@ void vHttpsTask(void* pvParameters) {
   temperatureExpirationTimer.forceExpired();
 
   while (true) {
-    JsonDocument doc;
+    try {
+      JsonDocument doc;
 
-    if (time(nullptr) > tokenExpires) {
-      if (callApi("https://api.libreview.io/llu/auth/login", "cgmLogin", &doc)) {
-        token = (const char*) doc["data"]["authTicket"]["token"];
-        tokenExpires = (long) doc["data"]["authTicket"]["expires"];
+      if (time(nullptr) > tokenExpires) {
+        if (callApi("https://api.libreview.io/llu/auth/login", "cgmLogin", &doc)) {
+          token = (const char*) doc["data"]["authTicket"]["token"];
+          tokenExpires = (long) doc["data"]["authTicket"]["expires"];
 
-        struct tm timeinfo;
-        gmtime_r((const time_t*) &tokenExpires, &timeinfo);
-        Serial.print("Auth token expires at ");
-        Serial.println(asctime(&timeinfo));
-      }
-    }
-
-    if (time(nullptr) < tokenExpires) {
-      if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", &doc)) {
-        JsonObject connection = doc["data"][0];
-        data.mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
-        const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
-        Serial.print("Glucose level = ");
-        Serial.print(data.mgPerDl);
-        Serial.print(" mg/dL at ");
-        Serial.println(timestamp);
-      }
-    } else {
-      Serial.println("Auth token is outdated!");
-      Serial.println("It should be automatically reauthorized the next time we attempt to fetch the data.");
-      Serial.println("If not then the login credentials are bad");
-    }
-
-    if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
-      if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
-        data.propaneLevel = (int) doc[0]["Level"];
-        Serial.print("Propane level = ");
-        Serial.print(data.propaneLevel);
-        Serial.println("%");
+          struct tm timeinfo;
+          gmtime_r((const time_t*) &tokenExpires, &timeinfo);
+          Serial.print("Auth token expires at ");
+          Serial.println(asctime(&timeinfo));
+        }
       }
 
-      propaneExpirationTimer.reset();
-    }
-
-    if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
-      if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", &doc)) {
-        data.temperature = (((double) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
-        Serial.print("Temperature = ");
-        Serial.println(data.temperature);
+      if (time(nullptr) < tokenExpires) {
+        if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", &doc)) {
+          JsonObject connection = doc["data"][0];
+          data.mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
+          const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
+          Serial.print("Glucose level = ");
+          Serial.print(data.mgPerDl);
+          Serial.print(" mg/dL at ");
+          Serial.println(timestamp);
+        }
+      } else {
+        Serial.println("Auth token is outdated!");
+        Serial.println("It should be automatically reauthorized the next time we attempt to fetch the data.");
+        Serial.println("If not then the login credentials are bad");
       }
 
-      temperatureExpirationTimer.reset();
-    }
+      if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
+        if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
+          data.propaneLevel = (int) doc[0]["Level"];
+          Serial.print("Propane level = ");
+          Serial.print(data.propaneLevel);
+          Serial.println("%");
+        }
 
-    if (uxTaskGetStackHighWaterMark(NULL) < httpsTaskHighWaterMark) {
-      Serial.printf("httpsTaskHighWaterMark has changed from %d to %d\n", (httpsTaskHighWaterMark == LONG_MAX ? -1 : httpsTaskHighWaterMark), uxTaskGetStackHighWaterMark(NULL));
-      httpsTaskHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+        propaneExpirationTimer.reset();
+      }
+
+      if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
+        if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", &doc)) {
+          data.temperature = (((double) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
+          Serial.print("Temperature = ");
+          Serial.println(data.temperature);
+        }
+
+        temperatureExpirationTimer.reset();
+      }
+
+      if (uxTaskGetStackHighWaterMark(NULL) < httpsTaskHighWaterMark) {
+        Serial.printf("httpsTaskHighWaterMark has changed from %d to %d\n", (httpsTaskHighWaterMark == LONG_MAX ? -1 : httpsTaskHighWaterMark), uxTaskGetStackHighWaterMark(NULL));
+        httpsTaskHighWaterMark = uxTaskGetStackHighWaterMark(NULL);
+      }
+    } catch (...) {
     }
 
     vTaskDelay(60000);
