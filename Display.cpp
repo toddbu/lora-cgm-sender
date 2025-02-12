@@ -149,7 +149,7 @@ void Display::_displayCgmData() {
   char displayBuffer[8];
 
   long mgPerDl = _data->mgPerDl;
-  if (mgPerDl != -1) {
+  if (mgPerDl > UNKNOWN_MG_PER_DL) {
     sprintf(displayBuffer, "%d", mgPerDl);
   } else {
     strcpy(displayBuffer, "---");
@@ -184,7 +184,7 @@ void Display::_displayPropaneLevel() {
   char displayBuffer[8];
 
   _tft->pushImage(20, 11, 64, 64, PROPANE_TANK);
-  if (_data->propaneLevel > 0) {
+  if (_data->propaneLevel > UNKNOWN_PROPANE_LEVEL) {
     sprintf(displayBuffer, "%d", _data->propaneLevel);
   } else {
     strcpy(displayBuffer, "--");
@@ -202,7 +202,7 @@ void Display::_displayTemperature() {
   char displayBuffer[8];
 
   _tft->pushImage(17, 80, 64, 64, THERMOMETER);
-  if (_data->temperature > -100.0) {
+  if (_data->temperature > UNKNOWN_TEMPERATURE) {
     sprintf(displayBuffer, "%3.0f", _data->temperature);
   } else {
     strcpy(displayBuffer, "--");

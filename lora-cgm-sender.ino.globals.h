@@ -1,5 +1,9 @@
 #pragma once
 
+#define UNKNOWN_MG_PER_DL -1
+#define UNKNOWN_PROPANE_LEVEL -1
+#define UNKNOWN_TEMPERATURE 100.0
+
 #define DATA_COLLECTOR
 #define ENABLE_DISPLAY
 
