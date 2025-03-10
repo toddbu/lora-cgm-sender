@@ -126,9 +126,21 @@ void Display::_displayClock() {
     time_t nowSecs = _data->time;
     struct tm timeinfo;
     gmtime_r((const time_t *) &nowSecs, &timeinfo);
+    // Serial.print("nowSecs = ");
+    // Serial.println(nowSecs);
+    // Serial.print("_data->dstBegin = ");
+    // Serial.println(_data->dstBegin);
+    // Serial.print("_data->dstEnd) = ");
+    // Serial.println(_data->dstEnd);
 
-    volatile const int timezone = -25200;
-    int hour = timeinfo.tm_hour + (timezone / 3600);
+    int32_t timezoneOffset;
+    if ((nowSecs >= _data->dstBegin) &&
+        (nowSecs < _data->dstEnd)) {
+      timezoneOffset = _data->daylightTimezoneOffset;
+    } else {
+      timezoneOffset = _data->standardTimezoneOffset;
+    }
+    int32_t hour = timeinfo.tm_hour + (timezoneOffset / 3600);
     if (hour < 0) {
       hour += 24;
     }
