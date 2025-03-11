@@ -7,7 +7,7 @@
 #include "lora-cgm-sender.ino.globals.h"
 
 #include "data.h"
-volatile struct data_struct data = {0, 0, 0, 0, 0, UNKNOWN_MG_PER_DL, UNKNOWN_PROPANE_LEVEL, UNKNOWN_TEMPERATURE};
+volatile struct data_struct data = {0, 0, 0, 0, 0, false, UNKNOWN_MG_PER_DL, UNKNOWN_PROPANE_LEVEL, UNKNOWN_TEMPERATURE};
 
 #if defined(ENABLE_DISPLAY)
 #include "Display.h"

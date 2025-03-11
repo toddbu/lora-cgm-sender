@@ -121,7 +121,8 @@ void Display::resetDisplay() {
 }
 
 void Display::_displayClock() {
-  if ((_data->time / 60) !=  (_oldData->time / 60)) {
+  if (((_data->time / 60) !=  (_oldData->time / 60)) ||
+      _data->forceTimeUpdate) {
     char displayBuffer[8];
     time_t nowSecs = _data->time;
     struct tm timeinfo;
@@ -154,6 +155,7 @@ void Display::_displayClock() {
     rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 462, 160, 4.5 * 96);
 #endif
     _oldData->time = _data->time;
+    _data->forceTimeUpdate = false;
   }
 }
 
