@@ -8,12 +8,15 @@
 
 #define PROPANE_TIMEOUT (3600 * 6)
 #define TEMPERATURE_TIMEOUT 300
+// #define SETTIME_TIMEOUT (3600 * 24)
+#define SETTIME_TIMEOUT 60
+#define TIMEZONE "America/Los_Angeles"
 
 extern volatile struct data_struct data;
 
 String token;
 long tokenExpires = 0;
-bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
+bool callApi(const char* endpoint, const char* requestType, void** doc) {
   char url[255];
   bool doPost = false;
   char postData[128];
@@ -78,7 +81,13 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
 
   String payload = https.getString();
   // Serial.println(payload);  // Print the response body
-  deserializeJson(*doc, payload);
+  if (strcmp(requestType, "timezoneInfo") == 0) {
+    int length = payload.length() + 1;
+    *doc = malloc(length);
+    strcpy((char*) *doc, payload.c_str());
+  } else {
+    deserializeJson(*((JsonDocument*) doc), payload);
+  }
 
   https.end();
 
@@ -88,16 +97,18 @@ bool callApi(const char* endpoint, const char* requestType, JsonDocument* doc) {
 long httpsTaskHighWaterMark = LONG_MAX;
 ExpirationTimer propaneExpirationTimer = ExpirationTimer();
 ExpirationTimer temperatureExpirationTimer = ExpirationTimer();
+ExpirationTimer settimeTimer = ExpirationTimer();
 void vHttpsTask(void* pvParameters) {
   propaneExpirationTimer.forceExpired();
   temperatureExpirationTimer.forceExpired();
+  settimeTimer.forceExpired();
 
   while (true) {
     try {
       JsonDocument doc;
 
       if (time(nullptr) > tokenExpires) {
-        if (callApi("https://api.libreview.io/llu/auth/login", "cgmLogin", &doc)) {
+        if (callApi("https://api.libreview.io/llu/auth/login", "cgmLogin", (void**) &doc)) {
           token = (const char*) doc["data"]["authTicket"]["token"];
           tokenExpires = (long) doc["data"]["authTicket"]["expires"];
 
@@ -109,7 +120,7 @@ void vHttpsTask(void* pvParameters) {
       }
 
       if (time(nullptr) < tokenExpires) {
-        if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", &doc)) {
+        if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", (void**) &doc)) {
           JsonObject connection = doc["data"][0];
           data.mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
           const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
@@ -125,7 +136,7 @@ void vHttpsTask(void* pvParameters) {
       }
 
       if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
-        if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", &doc)) {
+        if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", (void**) &doc)) {
           data.propaneLevel = (int) doc[0]["Level"];
           Serial.print("Propane level = ");
           Serial.print(data.propaneLevel);
@@ -136,13 +147,86 @@ void vHttpsTask(void* pvParameters) {
       }
 
       if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
-        if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", &doc)) {
+        if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", (void**) &doc)) {
           data.temperature = (((double) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
           Serial.print("Temperature = ");
           Serial.println(data.temperature);
         }
 
         temperatureExpirationTimer.reset();
+      }
+
+      if (settimeTimer.isExpired(SETTIME_TIMEOUT * 1000)) {
+        char* payload;
+        if (callApi("https://buiten.com/time-zone-info", "timezoneInfo", (void**) &payload)) {
+          char* originalPayload = payload;
+
+          const int MAX_TOKENS = 5;
+          char* payloadSavePtr;
+          char* line = strtok_r(payload, "\n", &payloadSavePtr);
+          while (line) {
+            Serial.println(line);
+            if (*line == '#') {
+              line = strtok_r(NULL, "\n", &payloadSavePtr);
+              // Serial.println("Skipping timezone info line because it's a comment");
+              continue;
+            }
+
+            char* tokens[MAX_TOKENS];
+            int tokenCount = 0;
+            char* tokenSavePtr;
+            char* token = strtok_r(line, ",", &tokenSavePtr);
+            while (token &&
+                   (tokenCount < MAX_TOKENS)) {
+              tokens[tokenCount++] = token;
+              token = strtok_r(NULL, ",", &tokenSavePtr);
+            }
+
+            // Serial.print("tokenCount = ");
+            // Serial.println(tokenCount);
+
+            if (tokenCount < 2) {
+              Serial.println("Skipping timezone info line because there are not enough tokens");
+              line = strtok_r(NULL, "\n", &payloadSavePtr);
+              continue;
+            }
+
+            if (strcmp(tokens[1], TIMEZONE) != 0) {
+              // Serial.println("Skipping timezone info line because there is a timezone mismatch");
+              line = strtok_r(NULL, "\n", &payloadSavePtr);
+              continue;
+            }
+
+            if ((tokenCount == 3) &&
+                (strcmp(tokens[0], "1") == 0)) {
+              try {
+                data.standardTimezoneOffset = atoi(tokens[2]);
+              } catch (...) {
+                Serial.println("Error parsing timezone info tokens");
+              }
+            } else if ((tokenCount == 5) &&
+                       (strcmp(tokens[0], "2") == 0)) {
+              try {
+                data.dstBegin = atol(tokens[2]);
+                data.dstEnd = atol(tokens[3]);
+                data.daylightTimezoneOffset = atoi(tokens[4]);
+              } catch (...) {
+                Serial.println("Error parsing timezone info tokens");
+              }
+            } else {
+              Serial.print("Unknown timezone info type ");
+              Serial.print(tokens[0]);
+              Serial.print(" with token count ");
+              Serial.println(tokenCount);
+            }
+
+            line = strtok_r(NULL, "\n", &payloadSavePtr);
+          }
+
+          free((void*) originalPayload);
+        }
+
+        settimeTimer.reset();
       }
 
       if (uxTaskGetStackHighWaterMark(NULL) < httpsTaskHighWaterMark) {
