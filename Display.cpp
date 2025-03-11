@@ -122,33 +122,38 @@ void Display::resetDisplay() {
 
 void Display::_displayClock() {
   if (((_data->time / 60) !=  (_oldData->time / 60)) ||
+      (_data->time < 0) ||
       _data->forceTimeUpdate) {
     char displayBuffer[8];
-    time_t nowSecs = _data->time;
-    struct tm timeinfo;
-    gmtime_r((const time_t *) &nowSecs, &timeinfo);
-    // Serial.print("nowSecs = ");
-    // Serial.println(nowSecs);
-    // Serial.print("_data->dstBegin = ");
-    // Serial.println(_data->dstBegin);
-    // Serial.print("_data->dstEnd) = ");
-    // Serial.println(_data->dstEnd);
+    if (_data->time > 0) {
+      time_t nowSecs = _data->time;
+      struct tm timeinfo;
+      gmtime_r((const time_t *) &nowSecs, &timeinfo);
+      // Serial.print("nowSecs = ");
+      // Serial.println(nowSecs);
+      // Serial.print("_data->dstBegin = ");
+      // Serial.println(_data->dstBegin);
+      // Serial.print("_data->dstEnd) = ");
+      // Serial.println(_data->dstEnd);
 
-    int32_t timezoneOffset;
-    if ((nowSecs >= _data->dstBegin) &&
-        (nowSecs < _data->dstEnd)) {
-      timezoneOffset = _data->daylightTimezoneOffset;
+      int32_t timezoneOffset;
+      if ((nowSecs >= _data->dstBegin) &&
+          (nowSecs < _data->dstEnd)) {
+        timezoneOffset = _data->daylightTimezoneOffset;
+      } else {
+        timezoneOffset = _data->standardTimezoneOffset;
+      }
+      int32_t hour = timeinfo.tm_hour + (timezoneOffset / 3600);
+      if (hour < 0) {
+        hour += 24;
+      }
+      sprintf(displayBuffer, "%2d:%02d", hour, timeinfo.tm_min);
+
+      Serial.print("Current time: ");
+      Serial.print(asctime(&timeinfo));
     } else {
-      timezoneOffset = _data->standardTimezoneOffset;
+      strcpy(displayBuffer, "--:--");
     }
-    int32_t hour = timeinfo.tm_hour + (timezoneOffset / 3600);
-    if (hour < 0) {
-      hour += 24;
-    }
-    sprintf(displayBuffer, "%2d:%02d", hour, timeinfo.tm_min);
-
-    Serial.print("Current time: ");
-    Serial.print(asctime(&timeinfo));
 #if defined(DISPLAY_TYPE_ST7735_128_160)
     rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 142, 75, 4.5 * 96);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)

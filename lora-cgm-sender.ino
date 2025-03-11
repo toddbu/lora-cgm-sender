@@ -7,7 +7,7 @@
 #include "lora-cgm-sender.ino.globals.h"
 
 #include "data.h"
-volatile struct data_struct data = {0, 0, 0, 0, 0, false, UNKNOWN_MG_PER_DL, UNKNOWN_PROPANE_LEVEL, UNKNOWN_TEMPERATURE};
+volatile struct data_struct data = {-1, 0, 0, 0, 0, false, UNKNOWN_MG_PER_DL, UNKNOWN_PROPANE_LEVEL, UNKNOWN_TEMPERATURE};
 
 #if defined(ENABLE_DISPLAY)
 #include "Display.h"
@@ -25,25 +25,6 @@ SPIClass spi2(FSPI);
 #endif
 
 uint setupState = 0x00;
-
-// Setting the clock...
-void setClock() {
-  configTime(0, 0, "pool.ntp.org");
-
-  time_t nowSecs = time(nullptr);
-  while (time(nullptr) < 60) {  // Wait no more than 60 seconds for the clock to start
-    delay(500);
-    Serial.print(F("."));
-    taskYIELD();
-    nowSecs = time(nullptr);
-  }
-
-  Serial.println();
-  struct tm timeinfo;
-  gmtime_r((const time_t *) &nowSecs, &timeinfo);
-  Serial.print("Current time: ");
-  Serial.print(asctime(&timeinfo));
-}
 
 void setup() {
 #if defined(ENABLE_DISPLAY)
@@ -113,8 +94,6 @@ void loop() {
         display->println("Waiting for NTP time sync...");
 #endif
 
-        setClock();
-
 #if defined(ENABLE_DISPLAY)
         display->resetDisplay();
 #endif
@@ -153,7 +132,9 @@ void loop() {
 
     // Normal running
     case 0xFF:
-      data.time = time(nullptr);
+      if (time(nullptr) > 86400 * 365) {  // Give NTP one year to sync
+        data.time = time(nullptr);
+      }
 
 #if defined(ENABLE_SYNC)
       loRaSync->loop();

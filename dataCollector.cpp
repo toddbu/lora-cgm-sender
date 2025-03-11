@@ -103,6 +103,8 @@ void vHttpsTask(void* pvParameters) {
   temperatureExpirationTimer.forceExpired();
   settimeTimer.forceExpired();
 
+  configTime(0, 0, "pool.ntp.org");
+
   while (true) {
     try {
       JsonDocument doc;
