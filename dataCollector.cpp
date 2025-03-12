@@ -1,5 +1,6 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include "esp_sntp.h"
 #include <ArduinoJson.h>
 #include <ExpirationTimer.h>
 #include "credentials.h"
@@ -94,6 +95,20 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
   return true;
 }
 
+void printLocalTime() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("No time available (yet)");
+    return;
+  }
+  Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+}
+
+void timeSyncCallback(struct timeval *tv) {
+  Serial.println("Got time adjustment from NTP!");
+  printLocalTime();
+}
+
 long httpsTaskHighWaterMark = LONG_MAX;
 ExpirationTimer propaneExpirationTimer = ExpirationTimer();
 ExpirationTimer temperatureExpirationTimer = ExpirationTimer();
@@ -103,7 +118,10 @@ void vHttpsTask(void* pvParameters) {
   temperatureExpirationTimer.forceExpired();
   settimeTimer.forceExpired();
 
-  configTime(0, 0, "pool.ntp.org");
+  sntp_setoperatingmode(SNTP_OPMODE_POLL);
+  sntp_setservername(0, "pool.ntp.org");
+  sntp_set_time_sync_notification_cb(timeSyncCallback);
+  sntp_init();
 
   while (true) {
     try {
