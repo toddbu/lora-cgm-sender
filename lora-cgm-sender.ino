@@ -63,42 +63,21 @@ void loop() {
     case 0x00:
       {
 #if defined(DATA_COLLECTOR)
-        Serial.print("Connecting to Wi-Fi");
+        Serial.print("Connecting to Wi-Fi...");
 #if defined(ENABLE_DISPLAY)
         display->println(" Connecting to Wi-Fi...");
 #endif
         baseMillis = millis();
-        while ((WiFi.status() != WL_CONNECTED) &&
-              ((millis() - baseMillis) < 10000)) {
-          Serial.print(".");
-          delay(1000);
-          taskYIELD();
-        }
-        Serial.println();
-        Serial.print("Connected with IP: ");
-        Serial.println(WiFi.localIP());
-        Serial.println();
 #endif
 
         setupState = 0x01;
       }
 
       break;
-
-    // Initialize NTP
+    
     case 0x01:
-      {
-#if defined(DATA_COLLECTOR)
-        Serial.print(F("Waiting for NTP time sync..."));
-#if defined(ENABLE_DISPLAY)
-        display->println("Waiting for NTP time sync...");
-#endif
-
-#if defined(ENABLE_DISPLAY)
-        display->resetDisplay();
-#endif
-#endif
-
+      if ((WiFi.status() == WL_CONNECTED) ||
+          ((millis() - baseMillis) > 10000)) {
         setupState = 0x02;
       }
 
@@ -107,6 +86,15 @@ void loop() {
     // Initialize the HTTPS thread
     case 0x02:
       {
+        Serial.println();
+        Serial.print("Connected with IP: ");
+        Serial.println(WiFi.localIP());
+        Serial.println();
+
+#if defined(ENABLE_DISPLAY)
+        display->resetDisplay();
+#endif
+
 #if defined(DATA_COLLECTOR)
         BaseType_t xReturned;
         TaskHandle_t xHandle = NULL;
