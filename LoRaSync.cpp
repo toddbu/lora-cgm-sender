@@ -19,8 +19,10 @@ struct deviceMapping_struct deviceMapping[] = {
 
 struct clockInfo_struct {
   time_t time;
-  time_t dstBegins;
-  time_t dstEnds;
+  time_t dstBegin;
+  time_t dstEnd;
+  int32_t standardTimezoneOffset;
+  int32_t daylightTimezoneOffset;
 };
 
 struct cgm_struct {
@@ -154,13 +156,18 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 }
 
 void LoRaSync::_sendNetworkTime() {
+#if defined(DATA_COLLECTOR)
   struct clockInfo_struct clockInfo;
 
+  Serial.println("LoRa: sending network time");
   clockInfo.time = time(nullptr);
-  clockInfo.dstBegins = _dstBegins;
-  clockInfo.dstEnds = _dstEnds;
+  clockInfo.dstBegin = _data->dstBegin;
+  clockInfo.dstEnd = _data->dstEnd;
+  clockInfo.standardTimezoneOffset = _data->standardTimezoneOffset;
+  clockInfo.daylightTimezoneOffset = _data->daylightTimezoneOffset;
 
   _sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo));  // Time update
+#endif
 }
 
 void LoRaSync::_sendCgmData(bool forceUpdate) {
@@ -229,6 +236,7 @@ void LoRaSync::_receiveLoRaData() {
   switch (messageMetadata.type) {
     // Network time
     case 1:
+#if !defined(DATA_COLLECTOR)
       struct clockInfo_struct clockInfo;
       memcpy(&clockInfo, messageData, sizeof(clockInfo));
 
@@ -236,8 +244,18 @@ void LoRaSync::_receiveLoRaData() {
       tv.tv_sec = clockInfo.time;
       tv.tv_usec = 0;
       settimeofday(&tv, NULL);
-      _dstBegins = clockInfo.dstBegins;
-      _dstEnds = clockInfo.dstEnds;
+      _data->dstBegin = clockInfo.dstBegin;
+      _data->dstEnd = clockInfo.dstEnd;
+      _data->standardTimezoneOffset = clockInfo.standardTimezoneOffset;
+      _data->daylightTimezoneOffset = clockInfo.daylightTimezoneOffset;
+      _data->forceDisplayTimeUpdate = true;
+      // We won't change the value of _data->forceDisplayTimeUpdate for the following reasons:
+      //   1. We don't want to keep bouncing updates back and forth between devices when they receive a time from another device,
+      //      so we don't want to set this value to true, and
+      //   2. If _data->forceDisplayTimeUpdate was already set to true then that means that an update came from someplace else
+      //      and we want that update to finish
+      // _data->forceDisplayTimeUpdate = true;
+#endif
 
       break;
 

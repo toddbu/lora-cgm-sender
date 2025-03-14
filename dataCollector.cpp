@@ -9,8 +9,8 @@
 
 #define PROPANE_TIMEOUT (3600 * 6)
 #define TEMPERATURE_TIMEOUT 300
-// #define SETTIME_TIMEOUT (3600 * 24)
-#define SETTIME_TIMEOUT 60
+#define SETTIME_TIMEOUT (3600 * 24)
+// #define SETTIME_TIMEOUT 60
 #define TIMEZONE "America/Los_Angeles"
 
 extern volatile struct data_struct data;
@@ -105,6 +105,8 @@ void printLocalTime() {
 }
 
 void timeSyncCallback(struct timeval *tv) {
+  data.forceDisplayTimeUpdate = true;
+  data.forceLoRaTimeUpdate = true;
   Serial.println("Got time adjustment from NTP!");
   printLocalTime();
 }
@@ -136,7 +138,7 @@ void vHttpsTask(void* pvParameters) {
           char* payloadSavePtr;
           char* line = strtok_r(payload, "\n", &payloadSavePtr);
           while (line) {
-            Serial.println(line);
+            // Serial.println(line);
             if (*line == '#') {
               line = strtok_r(NULL, "\n", &payloadSavePtr);
               // Serial.println("Skipping timezone info line because it's a comment");
@@ -178,9 +180,16 @@ void vHttpsTask(void* pvParameters) {
             } else if ((tokenCount == 5) &&
                        (strcmp(tokens[0], "2") == 0)) {
               try {
-                data.dstBegin = atol(tokens[2]);
-                data.dstEnd = atol(tokens[3]);
+                data.dstBegin = atoll(tokens[2]);
+                data.dstEnd = atoll(tokens[3]);
                 data.daylightTimezoneOffset = atoi(tokens[4]);
+                // Serial.println("---");
+                // Serial.println(tokens[2]);
+                // Serial.println(data.dstBegin);
+                // Serial.println(tokens[3]);
+                // Serial.println(data.dstEnd);
+                // Serial.println(data.daylightTimezoneOffset);
+                // Serial.println(time(nullptr));
               } catch (...) {
                 Serial.println("Error parsing timezone info tokens");
               }
@@ -194,7 +203,8 @@ void vHttpsTask(void* pvParameters) {
             line = strtok_r(NULL, "\n", &payloadSavePtr);
           }
 
-          data.forceTimeUpdate = true;
+          data.forceDisplayTimeUpdate = true;
+          data.forceLoRaTimeUpdate = true;
           free((void*) originalPayload);
         }
 

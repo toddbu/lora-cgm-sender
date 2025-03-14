@@ -6,7 +6,8 @@ struct data_struct {
   time_t dstEnd;
   int32_t standardTimezoneOffset;
   int32_t daylightTimezoneOffset;
-  bool forceTimeUpdate;
+  bool forceDisplayTimeUpdate;
+  bool forceLoRaTimeUpdate;
   long mgPerDl;
   int propaneLevel;
   double temperature;
