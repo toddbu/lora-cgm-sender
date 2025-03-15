@@ -7,7 +7,21 @@
 #include "lora-cgm-sender.ino.globals.h"
 
 #include "data.h"
-volatile struct data_struct data = {-1, 0, 0, 0, 0, false, UNKNOWN_MG_PER_DL, UNKNOWN_PROPANE_LEVEL, UNKNOWN_TEMPERATURE};
+volatile struct data_struct data = {
+  -1,  // time
+  0,  // DST begin
+  0,  // DST end
+  0,  // standard time offset
+  0,  // daylight time offset
+  false,  // forceDisplayTimeUpdate
+  false,  // forceLoRaTimeUpdate
+  UNKNOWN_MG_PER_DL,  // CGM reading
+  UNKNOWN_PROPANE_LEVEL,  // propane level
+  UNKNOWN_TEMPERATURE,  // indoor temperature
+  UNKNOWN_HUMIDITY,  // indoor humidity
+  UNKNOWN_TEMPERATURE,  // outdoor temperature
+  UNKNOWN_HUMIDITY  // outdoor humidity
+};
 
 #if defined(ENABLE_DISPLAY)
 #include "Display.h"

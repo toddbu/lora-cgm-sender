@@ -8,7 +8,10 @@ struct data_struct {
   int32_t daylightTimezoneOffset;
   bool forceDisplayTimeUpdate;
   bool forceLoRaTimeUpdate;
-  long mgPerDl;
-  int propaneLevel;
-  double temperature;
+  ushort mgPerDl;
+  byte propaneLevel;
+  float indoorTemperature;
+  byte indoorHumidity;
+  float outdoorTemperature;
+  byte outdoorHumidity;
 };

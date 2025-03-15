@@ -167,8 +167,11 @@ void Display::_displayClock() {
 void Display::_displayCgmData() {
   char displayBuffer[8];
 
-  long mgPerDl = _data->mgPerDl;
-  if (mgPerDl > UNKNOWN_MG_PER_DL) {
+  ushort mgPerDl = _data->mgPerDl;
+  // Serial.println("---");
+  // Serial.println(mgPerDl);
+  // Serial.println(UNKNOWN_MG_PER_DL);
+  if (mgPerDl != UNKNOWN_MG_PER_DL) {
     sprintf(displayBuffer, "%d", mgPerDl);
   } else {
     strcpy(displayBuffer, "---");
@@ -181,7 +184,7 @@ void Display::_displayCgmData() {
   u8g2.sendBuffer();  // transfer internal memory to the display
 #elif defined(DISPLAY_TYPE_TFT)
   uint32_t color;
-  if (mgPerDl == -1) {
+  if (mgPerDl == UNKNOWN_MG_PER_DL) {
     color = TFT_GREEN;
   } else if ((mgPerDl < 70) ||
              (mgPerDl > 250)) {
@@ -203,7 +206,7 @@ void Display::_displayPropaneLevel() {
   char displayBuffer[8];
 
   _tft->pushImage(20, 11, 64, 64, PROPANE_TANK);
-  if (_data->propaneLevel > UNKNOWN_PROPANE_LEVEL) {
+  if (_data->propaneLevel != UNKNOWN_PROPANE_LEVEL) {
     sprintf(displayBuffer, "%d", _data->propaneLevel);
   } else {
     strcpy(displayBuffer, "--");
@@ -221,8 +224,8 @@ void Display::_displayTemperature() {
   char displayBuffer[8];
 
   _tft->pushImage(17, 80, 64, 64, THERMOMETER);
-  if (_data->temperature > UNKNOWN_TEMPERATURE) {
-    sprintf(displayBuffer, "%3.0f", _data->temperature);
+  if (_data->outdoorTemperature != UNKNOWN_TEMPERATURE) {
+    sprintf(displayBuffer, "%3.0f", _data->outdoorTemperature);
   } else {
     strcpy(displayBuffer, "--");
   }
@@ -232,5 +235,5 @@ void Display::_displayTemperature() {
   rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
 #endif
 
-  _oldData->temperature = _data->temperature;
+  _oldData->outdoorTemperature = _data->outdoorTemperature;
 }

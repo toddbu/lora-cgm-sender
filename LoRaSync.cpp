@@ -30,6 +30,13 @@ struct cgm_struct {
   time_t time;
 };
 
+struct temperature_struct {
+  float indoorTemperature;
+  byte indoorHumidity;
+  float outdoorTemperature;
+  byte outdoorHumidity;
+};
+
 LoRaCrypto* loRaCrypto;
 
 LoRaSync::LoRaSync(volatile struct data_struct* data, SPIClass* spi) {
@@ -122,6 +129,7 @@ void LoRaSync::loop() {
 #if defined(ENABLE_SYNC_SENDER)
   _sendCgmData(false);
   _sendPropaneLevel(false);
+  _sendTemperatures(false);
 #endif
 #if defined(ENABLE_SYNC_RECEIVER)
   // Serial.println("ENABLE_SYNC_RECEIVER");
@@ -189,6 +197,23 @@ void LoRaSync::_sendPropaneLevel(bool forceUpdate) {
     _sendPacket(30, (byte*) &data, sizeof(data));  // Propane level in percent
     _propaneGuaranteeTimer.reset();
     _oldData->propaneLevel = _data->propaneLevel;
+  }
+}
+
+void LoRaSync::_sendTemperatures(bool forceUpdate) {
+  if ((_data->indoorTemperature != _oldData->indoorTemperature) ||
+      (_data->indoorHumidity != _oldData->indoorHumidity) ||
+      (_data->outdoorTemperature != _oldData->outdoorTemperature) ||
+      (_data->outdoorHumidity != _oldData->outdoorHumidity) ||
+      _temperatureGuaranteeTimer.isExpired(300000) ||  // Once every five minutes
+      forceUpdate) {
+    byte data = (_data->propaneLevel >= 0 ? _data->propaneLevel & 0xFF : 0xFF);
+    _sendPacket(30, (byte*) &data, sizeof(data));  // Propane level in percent
+    _temperatureGuaranteeTimer.reset();
+    _oldData->indoorHumidity = _data->indoorHumidity;
+    _oldData->indoorTemperature = _data->indoorTemperature;
+    _oldData->outdoorHumidity = _data->outdoorHumidity;
+    _oldData->outdoorTemperature = _data->outdoorTemperature;
   }
 }
 #endif
@@ -269,6 +294,7 @@ void LoRaSync::_receiveLoRaData() {
         _sendNetworkTime();
         _sendCgmData(true);
         _sendPropaneLevel(true);
+        _sendTemperatures(true);
       }
 #endif
       break;
@@ -287,8 +313,28 @@ void LoRaSync::_receiveLoRaData() {
 
     case 30:
       {
-        _data->propaneLevel = (int) messageData[0];
+        _data->propaneLevel = (byte) messageData[0];
         sprintf(displayBuffer, "\"messageId %d with propane reading = %d at time %" PRId64 "\"", messageMetadata.counter, _data->propaneLevel, time(nullptr));
+        Serial.println(displayBuffer);
+      }
+      break;
+
+    case 31:
+      {
+        struct temperature_struct temperatures;
+        memcpy(&temperatures, messageData, sizeof(temperatures));
+        _data->indoorTemperature = temperatures.indoorTemperature;
+        _data->indoorHumidity = temperatures.indoorHumidity;
+        _data->outdoorTemperature = temperatures.outdoorTemperature;
+        _data->outdoorHumidity = temperatures.outdoorHumidity;
+        sprintf(displayBuffer,
+                "\"messageId %d with temperature readings (IT) = %f, (IH) = %d, (OT) = %f, (OH) = %d at time %" PRId64 "\"",
+                messageMetadata.counter,
+                _data->indoorTemperature,
+                _data->indoorHumidity,
+                _data->outdoorTemperature,
+                _data->outdoorHumidity,
+                time(nullptr));
         Serial.println(displayBuffer);
       }
       break;

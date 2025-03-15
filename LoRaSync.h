@@ -18,11 +18,13 @@ class LoRaSync {
     LoRaClass* _loRa;
     ExpirationTimer _cgmGuaranteeTimer;
     ExpirationTimer _propaneGuaranteeTimer;
+    ExpirationTimer _temperatureGuaranteeTimer;
 
     void _sendPacket(uint16_t messageType, byte* data, uint dataLength);
     void _sendNetworkTime();
     void _sendCgmData(bool forceUpdate);
     void _sendPropaneLevel(bool forceUpdate);
+    void _sendTemperatures(bool forceUpdate);
     void _receiveLoRaData();
 
   public:

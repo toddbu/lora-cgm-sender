@@ -106,7 +106,7 @@ void printLocalTime() {
 
 void timeSyncCallback(struct timeval *tv) {
   data.forceDisplayTimeUpdate = true;
-  data.forceLoRaTimeUpdate = true;
+  data.forceLoRaTimeUpdate = true;  // The time may have adjusted
   Serial.println("Got time adjustment from NTP!");
   printLocalTime();
 }
@@ -204,7 +204,7 @@ void vHttpsTask(void* pvParameters) {
           }
 
           data.forceDisplayTimeUpdate = true;
-          data.forceLoRaTimeUpdate = true;
+          data.forceLoRaTimeUpdate = true;  // The DST settings may have adjusted
           free((void*) originalPayload);
         }
 
@@ -226,7 +226,7 @@ void vHttpsTask(void* pvParameters) {
       if (time(nullptr) < tokenExpires) {
         if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", (void**) &doc)) {
           JsonObject connection = doc["data"][0];
-          data.mgPerDl = (long) connection["glucoseMeasurement"]["ValueInMgPerDl"];
+          data.mgPerDl = (short) connection["glucoseMeasurement"]["ValueInMgPerDl"];
           const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
           Serial.print("Glucose level = ");
           Serial.print(data.mgPerDl);
@@ -241,7 +241,7 @@ void vHttpsTask(void* pvParameters) {
 
       if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
         if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", (void**) &doc)) {
-          data.propaneLevel = (int) doc[0]["Level"];
+          data.propaneLevel = (byte) doc[0]["Level"];
           Serial.print("Propane level = ");
           Serial.print(data.propaneLevel);
           Serial.println("%");
@@ -252,9 +252,13 @@ void vHttpsTask(void* pvParameters) {
 
       if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
         if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", (void**) &doc)) {
-          data.temperature = (((double) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
+          data.outdoorTemperature = (((float) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
+          data.outdoorHumidity = (byte) doc["main"]["humidity"];
           Serial.print("Temperature = ");
-          Serial.println(data.temperature);
+          Serial.println(data.outdoorTemperature);
+          Serial.print("Humidity = ");
+          Serial.print(data.outdoorHumidity);
+          Serial.println("%");
         }
 
         temperatureExpirationTimer.reset();
