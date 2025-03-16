@@ -235,7 +235,7 @@ void Display::_displayTemperature() {
 
   if ((_data->outdoorTemperature != _oldData->outdoorTemperature) ||
       _initializeDisplay) {
-    _tft->pushImage(18, 80, 64, 64, THERMOMETER);
+    _tft->pushImage(19, 80, 64, 64, THERMOMETER);
     if (_data->outdoorTemperature != UNKNOWN_TEMPERATURE) {
       sprintf(displayBuffer, "%3.0f", _data->outdoorTemperature);
     } else {
