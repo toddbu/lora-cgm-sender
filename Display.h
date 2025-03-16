@@ -5,8 +5,8 @@
 
 // #define DISPLAY_TYPE_LCD_042
 #define DISPLAY_TYPE_TFT
-// #define DISPLAY_TYPE_ST7735_128_160
-#define DISPLAY_TYPE_ILI9488_480_320
+#define DISPLAY_TYPE_ST7735_128_160
+// #define DISPLAY_TYPE_ILI9488_480_320
 
 
 #if defined(DISPLAY_TYPE_LCD_042)
@@ -29,8 +29,10 @@ class Display {
 
     void _displayClock();
     void _displayCgmData();
+#if defined(DISPLAY_TYPE_ILI9488_480_320)
     void _displayPropaneLevel();
     void _displayTemperature();
+#endif
 
   public:
     Display(volatile struct data_struct* data);

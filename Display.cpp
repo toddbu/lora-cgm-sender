@@ -15,7 +15,7 @@
 #define FONT_NUMBER 7
 #define FONT_NUMBER_2 2
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-#define FONT_SIZE 2
+#define FONT_SIZE 1
 #define FONT_SIZE_CLOCK 1
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
 #define FONT_SIZE 3
@@ -68,11 +68,11 @@ Display::~Display() {
 }
 
 void Display::setup() {
-  #if defined(DISPLAY_TYPE_LCD_042)
+#if defined(DISPLAY_TYPE_LCD_042)
   _u8g2 = new U8G2_SSD1306_72X40_ER_F_HW_I2C(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // EastRising 0.42" OLED
-  #elif defined(DISPLAY_TYPE_TFT)
+#elif defined(DISPLAY_TYPE_TFT)
   _tft = new TFT_eSPI();  // Invoke custom library
-  #endif
+#endif
 
 #if defined(DISPLAY_TYPE_LCD_042)
   Wire.begin(SDA_PIN, SCL_PIN);
@@ -104,8 +104,10 @@ void Display::setup() {
 void Display::loop() {
   _displayClock();
   _displayCgmData();
+#if defined(DISPLAY_TYPE_ILI9488_480_320)
   _displayPropaneLevel();
   _displayTemperature();
+#endif
 
   _initializeDisplay = false;
 };
@@ -158,7 +160,7 @@ void Display::_displayClock() {
       strcpy(displayBuffer, "--:--");
     }
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 142, 75, 4.5 * 96);
+    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 142, 75, 4.5 * 96);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 462, 160, 4.5 * 96);
 #endif
@@ -202,13 +204,18 @@ void Display::_displayCgmData() {
     }
     drawBorder(_tft, 0, 0, _tft->width(), _tft->height(), color);
 
+#if defined(DISPLAY_TYPE_ST7735_128_160)
+    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE, color, 142, 9, 4.5 * 96);
+#elif defined(DISPLAY_TYPE_ILI9488_480_320)
     rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE, color, 462, 9, 3 * 96);
+#endif
 #endif
 
     _oldData->mgPerDl = mgPerDl;
   }
 }
 
+#if defined(DISPLAY_TYPE_ILI9488_480_320)
 void Display::_displayPropaneLevel() {
   char displayBuffer[8];
 
@@ -220,11 +227,7 @@ void Display::_displayPropaneLevel() {
     } else {
       strcpy(displayBuffer, "--");
     }
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 29, 2 * 16);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
     rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 20, 2 * 16);
-#endif
 
     _oldData->propaneLevel = _data->propaneLevel;
   }
@@ -241,12 +244,9 @@ void Display::_displayTemperature() {
     } else {
       strcpy(displayBuffer, "--");
     }
-#if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
-#elif defined(DISPLAY_TYPE_ILI9488_480_320)
     rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
-#endif
 
     _oldData->outdoorTemperature = _data->outdoorTemperature;
   }
 }
+#endif
