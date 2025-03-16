@@ -25,6 +25,7 @@ class Display {
 #elif defined(DISPLAY_TYPE_TFT)
     TFT_eSPI* _tft;
 #endif
+    bool _initializeDisplay;
 
     void _displayClock();
     void _displayCgmData();
