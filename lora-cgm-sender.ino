@@ -84,9 +84,11 @@ void loop() {
         display->println(" Connecting to Wi-Fi...");
 #endif
         baseMillis = millis();
-#endif
 
         setupState = 0x01;
+#else
+        setupState = 0x02;
+#endif
       }
 
       break;
