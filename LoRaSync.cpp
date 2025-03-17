@@ -126,12 +126,12 @@ void LoRaSync::setup() {
 #if defined(ENABLE_SYNC_RECEIVER)
   _loRa->receive();
 #endif
+}
 
+void LoRaSync::sendBootSync() {
   Serial.print(F("Broadcasting boot-sync message for device ID = "));
   Serial.println(_deviceId);
-#if defined(ENABLE_SYNC_SENDER)
   _sendPacket(2, (byte*) &_deviceId, sizeof(_deviceId));  // Boot-sync message
-#endif
 }
 
 void LoRaSync::loop() {
@@ -146,7 +146,7 @@ void LoRaSync::loop() {
 #endif
 }
 
-#if defined(ENABLE_SYNC_SENDER)
+#if defined(ENABLE_SYNC)  // Receivers will send boot-sync messages
 void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   // _loRa->idle();
   _loRa->beginPacket();
@@ -167,9 +167,9 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
 
   _loRa->endPacket();
 
-  delay(500);  // Wait for the message to transmit
+  // delay(50);  // Wait for the message to transmit
 
-  _loRa->receive();
+  // _loRa->receive();
 
   // _loRa->sleep();
 }
@@ -219,7 +219,7 @@ void LoRaSync::_sendTemperatures(bool forceUpdate) {
       _temperatureGuaranteeTimer.isExpired(300000) ||  // Once every five minutes
       forceUpdate) {
     byte data = (_data->propaneLevel >= 0 ? _data->propaneLevel & 0xFF : 0xFF);
-    _sendPacket(30, (byte*) &data, sizeof(data));  // Propane level in percent
+    _sendPacket(31, (byte*) &data, sizeof(data));  // Propane level in percent
     _temperatureGuaranteeTimer.reset();
     _oldData->indoorHumidity = _data->indoorHumidity;
     _oldData->indoorTemperature = _data->indoorTemperature;

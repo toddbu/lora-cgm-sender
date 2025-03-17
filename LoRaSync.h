@@ -34,5 +34,6 @@ class LoRaSync {
     void setup();
     void loop();
 
+    void sendBootSync();
     uint16_t deviceId() { return _deviceId; };
 };

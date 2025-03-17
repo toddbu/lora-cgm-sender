@@ -102,10 +102,12 @@ void loop() {
     // Initialize the HTTPS thread
     case 0x02:
       {
+#if defined(DATA_COLLECTOR)
         Serial.println();
         Serial.print("Connected with IP: ");
         Serial.println(WiFi.localIP());
         Serial.println();
+#endif
 
 #if defined(ENABLE_DISPLAY)
         display->resetDisplay();
@@ -129,6 +131,9 @@ void loop() {
         }
 #endif
 
+#if defined(ENABLE_SYNC)
+      loRaSync->sendBootSync();
+#endif
         setupState = 0xFF;
       }
 
