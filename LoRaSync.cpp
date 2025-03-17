@@ -12,7 +12,9 @@ struct deviceMapping_struct {
 
 struct deviceMapping_struct deviceMapping[] = {
   {"24:58:7c:dc:99:d0", 32},  // Large display #1
-  {"b8:c8:ce:3f:00:00", 33},  // Small display
+
+  {"24:58:7c:dc:8b:44", 33},  // Small display
+
   {"34:b7:da:59:0a:90", 34},  // Large display #2
   {"40:c9:ce:3f:00:00", 35}  // Large display #3
 };
@@ -67,8 +69,18 @@ void LoRaSync::setup() {
   pinMode(4, INPUT);
 
   uint8_t baseMac[6];
-  char macAddress[18];
-  esp_err_t result = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
+  char macAddress[20];
+  wifi_init_config_t wifiInitConfig = WIFI_INIT_CONFIG_DEFAULT();
+  esp_err_t result = esp_wifi_init(&wifiInitConfig);
+  Serial.print("esp_wifi_init() returned ");
+  Serial.println(result);
+  if (result != ESP_OK) {
+    Serial.println("Failed to initialize wifi");
+  }
+
+  result = esp_wifi_get_mac(WIFI_IF_STA, baseMac);
+  Serial.print("esp_wifi_get_mac() returned ");
+  Serial.println(result);
   if (result != ESP_OK) {
     Serial.println("Failed to read MAC address");
   }
@@ -147,7 +159,9 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, _deviceId, messageType, data, dataLength);
   _loRa->write(encryptedMessage, encryptedMessageLength);
 
-  Serial.print("Sending packet: ");
+  Serial.print("Sending packet: device ID = ");
+  Serial.print(_deviceId);
+  Serial.print(", counter = ");
   Serial.print(counter);
   Serial.print(", type = ");
   Serial.print(messageType);

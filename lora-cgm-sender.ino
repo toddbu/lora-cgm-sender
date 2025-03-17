@@ -65,7 +65,9 @@ void setup() {
   loRaSync->setup();
 #endif
 
+#if defined(DATA_COLLECTOR)
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+#endif
 
   setupState = 0x00;
 }
