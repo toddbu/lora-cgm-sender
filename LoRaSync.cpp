@@ -12,11 +12,8 @@ struct deviceMapping_struct {
 
 struct deviceMapping_struct deviceMapping[] = {
   {"24:58:7c:dc:99:d0", 32},  // Large display #1
-
   {"24:58:7c:dc:8b:44", 33},  // Small display
-
   {"34:b7:da:59:0a:90", 34},  // Large display #2
-  {"40:c9:ce:3f:00:00", 35}  // Large display #3
 };
 
 struct clockInfo_struct {
