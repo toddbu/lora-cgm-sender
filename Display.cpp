@@ -81,6 +81,9 @@ void Display::setup() {
   _tft->init();
   // _tft->init(INITR_BLACKTAB);
 
+// Rotation values:
+//   1: Display connections opposite MCU
+//   3: Display connections on the same side as the MCU
   #if defined(DISPLAY_TYPE_ST7735_128_160)
   _tft->setRotation(3);
   #else
