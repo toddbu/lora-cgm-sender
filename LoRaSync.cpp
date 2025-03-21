@@ -32,9 +32,10 @@ struct cgm_struct {
 
 struct temperature_struct {
   float indoorTemperature;
-  byte indoorHumidity;
   float outdoorTemperature;
+  byte indoorHumidity;
   byte outdoorHumidity;
+  byte padding0[2];
 };
 
 LoRaCrypto* loRaCrypto;
@@ -219,8 +220,14 @@ void LoRaSync::_sendTemperatures(bool forceUpdate) {
       (_data->outdoorHumidity != _oldData->outdoorHumidity) ||
       _temperatureGuaranteeTimer.isExpired(300000) ||  // Once every five minutes
       forceUpdate) {
-    byte data = (_data->propaneLevel >= 0 ? _data->propaneLevel & 0xFF : 0xFF);
-    _sendPacket(31, (byte*) &data, sizeof(data));  // Propane level in percent
+    struct temperature_struct temperatures;
+
+    temperatures.indoorTemperature = _data->indoorTemperature;
+    temperatures.indoorHumidity = _data->indoorHumidity;
+    temperatures.outdoorTemperature = _data->outdoorTemperature;
+    temperatures.outdoorHumidity = _data->outdoorHumidity;
+
+    _sendPacket(31, (byte*) &temperatures, sizeof(temperatures) - sizeof(temperatures.padding0));
     _temperatureGuaranteeTimer.reset();
     _oldData->indoorHumidity = _data->indoorHumidity;
     _oldData->indoorTemperature = _data->indoorTemperature;
@@ -334,6 +341,15 @@ void LoRaSync::_receiveLoRaData() {
     case 31:
       {
         struct temperature_struct temperatures;
+
+        Serial.println(encryptedMessageLength);
+        if (encryptedMessageLength < (sizeof(temperatures) - sizeof(temperatures.padding0))) {
+          Serial.println("error: the message has the wrong length. It is ");
+          Serial.print(encryptedMessageLength);
+          Serial.println(" byte(s) long, but must be at least 10 bytes");
+          break;
+        }
+
         memcpy(&temperatures, messageData, sizeof(temperatures));
         _data->indoorTemperature = scrubTemperature(temperatures.indoorTemperature);
         _data->indoorHumidity = scrubHumidity(temperatures.indoorHumidity);
