@@ -87,7 +87,7 @@ void Display::setup() {
   #if defined(DISPLAY_TYPE_ST7735_128_160)
   _tft->setRotation(3);
   #else
-  _tft->setRotation(1);
+  _tft->setRotation(3);
   #endif
   _tft->setTextWrap(false, false);
   _tft->fillScreen(TFT_BLACK);

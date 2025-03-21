@@ -18,5 +18,7 @@ struct data_struct {
   byte outdoorHumidity;
 };
 
+extern ushort scrubMgPerDl(ushort mgPerDl);
+extern byte scrubPropaneLevel(byte propaneLevel);
 extern float scrubTemperature(float temperature);
 extern byte scrubHumidity(byte humidity);

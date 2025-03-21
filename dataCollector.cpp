@@ -226,7 +226,7 @@ void vHttpsTask(void* pvParameters) {
       if (time(nullptr) < tokenExpires) {
         if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", (void**) &doc)) {
           JsonObject connection = doc["data"][0];
-          data.mgPerDl = (short) connection["glucoseMeasurement"]["ValueInMgPerDl"];
+          data.mgPerDl = scrubMgPerDl((short) connection["glucoseMeasurement"]["ValueInMgPerDl"]);
           const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
           Serial.print("Glucose level = ");
           Serial.print(data.mgPerDl);
@@ -241,7 +241,7 @@ void vHttpsTask(void* pvParameters) {
 
       if (propaneExpirationTimer.isExpired(PROPANE_TIMEOUT * 1000)) {
         if (callApi("https://ws.otodatanetwork.com/neevoapp/v1/DataService.svc/GetAllDisplayPropaneDevices", "propane", (void**) &doc)) {
-          data.propaneLevel = (byte) doc[0]["Level"];
+          data.propaneLevel = scrubPropaneLevel((byte) doc[0]["Level"]);
           Serial.print("Propane level = ");
           Serial.print(data.propaneLevel);
           Serial.println("%");

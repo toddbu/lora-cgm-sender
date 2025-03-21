@@ -165,7 +165,7 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   Serial.print(", type = ");
   Serial.print(messageType);
   Serial.print(", length = ");
-  Serial.println(encryptedMessageLength);
+  Serial.println(dataLength);
 
   _loRa->endPacket();
 
@@ -324,7 +324,7 @@ void LoRaSync::_receiveLoRaData() {
 
         memcpy(&cgm, messageData, sizeof(cgm));
 
-        _data->mgPerDl = cgm.mgPerDl;
+        _data->mgPerDl = scrubMgPerDl(cgm.mgPerDl);
         sprintf(displayBuffer, "\"messageId %d with cgm reading = %d at time %" PRId64 "\"", messageMetadata.counter, _data->mgPerDl, cgm.time);
         Serial.println(displayBuffer);
       }
@@ -332,7 +332,7 @@ void LoRaSync::_receiveLoRaData() {
 
     case 30:
       {
-        _data->propaneLevel = (byte) messageData[0];
+        _data->propaneLevel = scrubPropaneLevel((byte) messageData[0]);
         sprintf(displayBuffer, "\"messageId %d with propane reading = %d at time %" PRId64 "\"", messageMetadata.counter, _data->propaneLevel, time(nullptr));
         Serial.println(displayBuffer);
       }
@@ -342,10 +342,9 @@ void LoRaSync::_receiveLoRaData() {
       {
         struct temperature_struct temperatures;
 
-        Serial.println(encryptedMessageLength);
-        if (encryptedMessageLength < (sizeof(temperatures) - sizeof(temperatures.padding0))) {
-          Serial.println("error: the message has the wrong length. It is ");
-          Serial.print(encryptedMessageLength);
+        if (messageMetadata.length < (sizeof(temperatures) - sizeof(temperatures.padding0))) {
+          Serial.print("error: the message has the wrong length. It is ");
+          Serial.print(messageMetadata.length);
           Serial.println(" byte(s) long, but must be at least 10 bytes");
           break;
         }
