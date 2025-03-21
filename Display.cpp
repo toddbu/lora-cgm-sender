@@ -247,7 +247,7 @@ void Display::_displayTemperature() {
     } else {
       strcpy(displayBuffer, "--");
     }
-    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 2 * 16);
+    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_PROPANE, TFT_GREEN, 160, 89, 6 * 16);
 
     _oldData->outdoorTemperature = _data->outdoorTemperature;
   }

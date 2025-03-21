@@ -1,6 +1,7 @@
 #include <esp_wifi.h>
 #include <Crypto.h>
 #include <ChaCha.h>
+#include "data.h"
 #include "LoRaSync.h"
 
 #include "lora-cgm-sender.ino.globals.h"
@@ -334,10 +335,10 @@ void LoRaSync::_receiveLoRaData() {
       {
         struct temperature_struct temperatures;
         memcpy(&temperatures, messageData, sizeof(temperatures));
-        _data->indoorTemperature = temperatures.indoorTemperature;
-        _data->indoorHumidity = temperatures.indoorHumidity;
-        _data->outdoorTemperature = temperatures.outdoorTemperature;
-        _data->outdoorHumidity = temperatures.outdoorHumidity;
+        _data->indoorTemperature = scrubTemperature(temperatures.indoorTemperature);
+        _data->indoorHumidity = scrubHumidity(temperatures.indoorHumidity);
+        _data->outdoorTemperature = scrubTemperature(temperatures.outdoorTemperature);
+        _data->outdoorHumidity = scrubHumidity(temperatures.outdoorHumidity);
         sprintf(displayBuffer,
                 "\"messageId %d with temperature readings (IT) = %f, (IH) = %d, (OT) = %f, (OH) = %d at time %" PRId64 "\"",
                 messageMetadata.counter,

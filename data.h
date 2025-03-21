@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Arduino.h>
+
 struct data_struct {
   time_t time;
   time_t dstBegin;
@@ -15,3 +17,6 @@ struct data_struct {
   float outdoorTemperature;
   byte outdoorHumidity;
 };
+
+extern float scrubTemperature(float temperature);
+extern byte scrubHumidity(byte humidity);

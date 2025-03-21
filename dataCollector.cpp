@@ -252,11 +252,11 @@ void vHttpsTask(void* pvParameters) {
 
       if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
         if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", (void**) &doc)) {
-          data.outdoorTemperature = (((float) doc["main"]["temp"] - 273.15) * (9/5)) + 32;
-          data.outdoorHumidity = (byte) doc["main"]["humidity"];
-          Serial.print("Temperature = ");
+          data.outdoorTemperature = scrubTemperature((((float) doc["main"]["temp"] - 273.15) * (9/5)) + 32);
+          data.outdoorHumidity = scrubHumidity((byte) doc["main"]["humidity"]);
+          Serial.print("Outdoor temperature = ");
           Serial.println(data.outdoorTemperature);
-          Serial.print("Humidity = ");
+          Serial.print("Outdoor humidity = ");
           Serial.print(data.outdoorHumidity);
           Serial.println("%");
         }
