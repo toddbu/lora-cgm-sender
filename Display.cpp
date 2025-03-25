@@ -163,7 +163,7 @@ void Display::_displayClock() {
       strcpy(displayBuffer, "--:--");
     }
 #if defined(DISPLAY_TYPE_ST7735_128_160)
-    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 150, 69, 4.5 * 24);
+    rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 150, 69, 5.75 * 24);
 #elif defined(DISPLAY_TYPE_ILI9488_480_320)
     rightJustify(_tft, displayBuffer, FONT_NUMBER, FONT_SIZE_CLOCK, TFT_GREEN, 462, 160, 4.5 * 96);
 #endif
