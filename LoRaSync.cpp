@@ -140,6 +140,7 @@ void LoRaSync::loop() {
 #if defined(ENABLE_SYNC_SENDER)
   if (_data->forceLoRaTimeUpdate) {
     _sendNetworkTime();
+    _data->forceLoRaTimeUpdate = false;
   }
   _sendCgmData(false);
   _sendPropaneLevel(false);
