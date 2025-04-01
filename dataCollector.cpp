@@ -212,7 +212,7 @@ void vHttpsTask(void* pvParameters) {
       }
 
       if (time(nullptr) > tokenExpires) {
-        if (callApi("https://api.libreview.io/llu/auth/login", "cgmLogin", (void**) &doc)) {
+        if (callApi("https://api-us.libreview.io/llu/auth/login", "cgmLogin", (void**) &doc)) {
           token = (const char*) doc["data"]["authTicket"]["token"];
           tokenExpires = (long) doc["data"]["authTicket"]["expires"];
 
@@ -224,7 +224,7 @@ void vHttpsTask(void* pvParameters) {
       }
 
       if (time(nullptr) < tokenExpires) {
-        if (callApi("https://api.libreview.io/llu/connections", "cgmNologin", (void**) &doc)) {
+        if (callApi("https://api-us.libreview.io/llu/connections", "cgmNologin", (void**) &doc)) {
           JsonObject connection = doc["data"][0];
           data.mgPerDl = scrubMgPerDl((short) connection["glucoseMeasurement"]["ValueInMgPerDl"]);
           const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
@@ -252,7 +252,7 @@ void vHttpsTask(void* pvParameters) {
 
       if (temperatureExpirationTimer.isExpired(TEMPERATURE_TIMEOUT * 1000)) {
         if (callApi("https://api.openweathermap.org/data/2.5/weather?lat=47.3874978&lon=-122.1391124&appid=", "temperature", (void**) &doc)) {
-          data.outdoorTemperature = scrubTemperature((((float) doc["main"]["temp"] - 273.15) * (9/5)) + 32);
+          data.outdoorTemperature = scrubTemperature((((float) doc["main"]["temp"] - 273.15) * (9.0 / 5.0)) + 32);
           data.outdoorHumidity = scrubHumidity((byte) doc["main"]["humidity"]);
           Serial.print("Outdoor temperature = ");
           Serial.println(data.outdoorTemperature);
