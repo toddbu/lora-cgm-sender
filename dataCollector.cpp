@@ -17,6 +17,7 @@ extern volatile struct data_struct data;
 
 String token;
 long tokenExpires = 0;
+String cgmRegion = "us";
 bool callApi(const char* endpoint, const char* requestType, void** doc) {
   char url[255];
   bool doPost = false;
@@ -34,6 +35,16 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
     strncat(url, OPEN_WEATHER_MAP_API_KEY, sizeof(url));
   } else if (memcmp(requestType, "cgm", 3) == 0) {
     bool performLogin = (memcmp(&requestType[3], "Login", 5) == 0);
+
+    strcpy(url, "https://api");
+    if (cgmRegion.length() > 0) {
+      strncat(url, "-", sizeof(url));
+      strncat(url, cgmRegion.c_str(), sizeof(url));
+      strncat(url, ".libreview.io", sizeof(url));
+    }
+    strncat(url, endpoint, sizeof(url));
+    // Serial.println("skjfsdhkhfdsjsdkjsdhksdjhsdjksdksdhskdjfsd");
+    // Serial.println(url);
 
     // Serial.println("[HTTPS] begin...");
     https.addHeader("Content-Type", "application/json");
@@ -80,8 +91,18 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
     return false;
   }
 
+    Serial.printf("[HTTPS] response code: %d\n", httpCode);
+    Serial.println();
+   if ((httpCode != HTTP_CODE_OK) &&
+       (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
+    Serial.println("[HTTPS] request not processed due to response code");
+    https.end();
+    return false;
+  }
+
   String payload = https.getString();
-  // Serial.println(payload);  // Print the response body
+  Serial.println("qwerty");
+  Serial.println(payload);  // Print the response body
   if (strcmp(requestType, "timezoneInfo") == 0) {
     int length = payload.length() + 1;
     *doc = malloc(length);
@@ -91,6 +112,17 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
   }
 
   https.end();
+
+  if (memcmp(requestType, "cgm", 3) == 0) {
+    String region = (const char*) (*((JsonDocument*) doc))["data"]["region"];
+    if (region.length() > 0) {
+      cgmRegion = region;
+      Serial.print("Region redirected to ");
+      Serial.println(cgmRegion);
+      ((JsonDocument*) doc)->clear();
+      return callApi(endpoint, requestType, doc);
+    }
+  }
 
   return true;
 }
@@ -212,7 +244,7 @@ void vHttpsTask(void* pvParameters) {
       }
 
       if (time(nullptr) > tokenExpires) {
-        if (callApi("https://api-us.libreview.io/llu/auth/login", "cgmLogin", (void**) &doc)) {
+        if (callApi("/llu/auth/login", "cgmLogin", (void**) &doc)) {
           token = (const char*) doc["data"]["authTicket"]["token"];
           tokenExpires = (long) doc["data"]["authTicket"]["expires"];
 
@@ -224,7 +256,7 @@ void vHttpsTask(void* pvParameters) {
       }
 
       if (time(nullptr) < tokenExpires) {
-        if (callApi("https://api-us.libreview.io/llu/connections", "cgmNologin", (void**) &doc)) {
+        if (callApi("/llu/connections", "cgmNologin", (void**) &doc)) {
           JsonObject connection = doc["data"][0];
           data.mgPerDl = scrubMgPerDl((short) connection["glucoseMeasurement"]["ValueInMgPerDl"]);
           const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
