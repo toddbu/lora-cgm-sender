@@ -17,7 +17,7 @@ extern volatile struct data_struct data;
 
 String token;
 long tokenExpires = 0;
-String cgmRegion = "us";
+String cgmRegion = "";
 bool callApi(const char* endpoint, const char* requestType, void** doc) {
   char url[255];
   bool doPost = false;
@@ -40,10 +40,10 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
     if (cgmRegion.length() > 0) {
       strncat(url, "-", sizeof(url));
       strncat(url, cgmRegion.c_str(), sizeof(url));
-      strncat(url, ".libreview.io", sizeof(url));
     }
+    strncat(url, ".libreview.io", sizeof(url));
     strncat(url, endpoint, sizeof(url));
-    // Serial.println("skjfsdhkhfdsjsdkjsdhksdjhsdjksdksdhskdjfsd");
+    // Serial.print("url = ");
     // Serial.println(url);
 
     // Serial.println("[HTTPS] begin...");
@@ -91,18 +91,17 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
     return false;
   }
 
-    Serial.printf("[HTTPS] response code: %d\n", httpCode);
-    Serial.println();
    if ((httpCode != HTTP_CODE_OK) &&
        (httpCode != HTTP_CODE_MOVED_PERMANENTLY)) {
+    Serial.printf("[HTTPS] response code: %d\n", httpCode);
+    Serial.println();
     Serial.println("[HTTPS] request not processed due to response code");
     https.end();
     return false;
   }
 
   String payload = https.getString();
-  Serial.println("qwerty");
-  Serial.println(payload);  // Print the response body
+  // Serial.println(payload);  // Print the response body
   if (strcmp(requestType, "timezoneInfo") == 0) {
     int length = payload.length() + 1;
     *doc = malloc(length);
@@ -117,8 +116,9 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
     String region = (const char*) (*((JsonDocument*) doc))["data"]["region"];
     if (region.length() > 0) {
       cgmRegion = region;
-      Serial.print("Region redirected to ");
-      Serial.println(cgmRegion);
+      Serial.print("Region redirected to \"");
+      Serial.print(cgmRegion);
+      Serial.println("\"");
       ((JsonDocument*) doc)->clear();
       return callApi(endpoint, requestType, doc);
     }
