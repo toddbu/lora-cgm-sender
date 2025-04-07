@@ -284,26 +284,37 @@ void LoRaSync::_receiveLoRaData() {
   switch (messageMetadata.type) {
     // Network time
     case 1:
-#if !defined(DATA_COLLECTOR)
       struct clockInfo_struct clockInfo;
       memcpy(&clockInfo, messageData, sizeof(clockInfo));
 
-      struct timeval tv;
-      tv.tv_sec = clockInfo.time;
-      tv.tv_usec = 0;
-      settimeofday(&tv, NULL);
-      _data->dstBegin = clockInfo.dstBegin;
-      _data->dstEnd = clockInfo.dstEnd;
-      _data->standardTimezoneOffset = clockInfo.standardTimezoneOffset;
-      _data->daylightTimezoneOffset = clockInfo.daylightTimezoneOffset;
-      _data->forceDisplayTimeUpdate = true;
-      // We won't change the value of _data->forceDisplayTimeUpdate for the following reasons:
-      //   1. We don't want to keep bouncing updates back and forth between devices when they receive a time from another device,
-      //      so we don't want to set this value to true, and
-      //   2. If _data->forceDisplayTimeUpdate was already set to true then that means that an update came from someplace else
-      //      and we want that update to finish
-      // _data->forceDisplayTimeUpdate = true;
+#if !defined(DATA_COLLECTOR)
+      #define forceTimeUpdate true
+#else
+      #define forceTimeUpdate false
 #endif
+      if ((time(nullptr) < (86400 *  365)) ||
+          forceTimeUpdate) {  // Check to see if our time needs to be update
+        struct timeval tv;
+        tv.tv_sec = clockInfo.time;
+        tv.tv_usec = 0;
+        settimeofday(&tv, NULL);
+        _data->dstBegin = clockInfo.dstBegin;
+        _data->dstEnd = clockInfo.dstEnd;
+        _data->standardTimezoneOffset = clockInfo.standardTimezoneOffset;
+        _data->daylightTimezoneOffset = clockInfo.daylightTimezoneOffset;
+        _data->forceDisplayTimeUpdate = true;
+        // We won't change the value of _data->forceDisplayTimeUpdate for the following reasons:
+        //   1. We don't want to keep bouncing updates back and forth between devices when they receive a time from another device,
+        //      so we don't want to set this value to true, and
+        //   2. If _data->forceDisplayTimeUpdate was already set to true then that means that an update came from someplace else
+        //      and we want that update to finish
+        // _data->forceDisplayTimeUpdate = true;
+      }
+
+      sprintf(displayBuffer, "\"time messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) messageData), time(nullptr));
+      Serial.println(displayBuffer);
+      Serial.print("Setting time to ");
+      Serial.println(clockInfo.time);
 
       break;
 

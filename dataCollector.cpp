@@ -79,6 +79,7 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
   // httpCode will be negative on error
   if (httpCode <= 0) {
     Serial.printf("[HTTPS] request failed, error: %s\n", https.errorToString(httpCode).c_str());
+    Serial.println();
     https.end();
     return false;
   }
