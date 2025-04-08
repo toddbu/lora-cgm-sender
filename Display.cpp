@@ -158,7 +158,7 @@ void Display::_displayClock() {
       sprintf(displayBuffer, "%2d:%02d", hour, timeinfo.tm_min);
 
       Serial.print("Current time: ");
-      Serial.print(asctime(&timeinfo));
+      Serial.println(asctime(&timeinfo));
     } else {
       strcpy(displayBuffer, "--:--");
     }

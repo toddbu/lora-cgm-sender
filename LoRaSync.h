@@ -21,6 +21,7 @@ class LoRaSync {
     ExpirationTimer _temperatureGuaranteeTimer;
 
     void _sendPacket(uint16_t messageType, byte* data, uint dataLength);
+    void _sendPacket2();
     void _sendNetworkTime();
     void _sendCgmData(bool forceUpdate);
     void _sendPropaneLevel(bool forceUpdate);

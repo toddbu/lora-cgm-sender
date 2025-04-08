@@ -5,6 +5,9 @@
 #include "LoRaSync.h"
 
 #include "lora-cgm-sender.ino.globals.h"
+#if defined(ENABLE_SYNC)  // Receivers will send boot-sync messages
+#include <cppQueue.h>
+#endif
 
 struct deviceMapping_struct {
   const char* macAddress;
@@ -16,6 +19,16 @@ struct deviceMapping_struct deviceMapping[] = {
   {"24:58:7c:dc:8b:44", 33},  // Small display
   {"34:b7:da:59:0a:90", 34},  // Large display #2
 };
+
+#if defined(ENABLE_SYNC)  // Receivers will send boot-sync messages
+#define LORA_QUEUE_ENTRIES 8
+struct loRaQueueEntry_struct {
+  uint16_t messageType;
+  byte data[255];
+  uint dataLength;
+};
+cppQueue loRaQueue(sizeof(loRaQueueEntry_struct), LORA_QUEUE_ENTRIES, FIFO);
+#endif
 
 struct clockInfo_struct {
   time_t time;
@@ -138,6 +151,8 @@ void LoRaSync::sendBootSync() {
 
 void LoRaSync::loop() {
 #if defined(ENABLE_SYNC_SENDER)
+  _sendPacket2();
+
   if (_data->forceLoRaTimeUpdate) {
     _sendNetworkTime();
     _data->forceLoRaTimeUpdate = false;
@@ -154,30 +169,54 @@ void LoRaSync::loop() {
 
 #if defined(ENABLE_SYNC)  // Receivers will send boot-sync messages
 void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
-  // _loRa->idle();
-  _loRa->beginPacket();
+  loRaQueueEntry_struct loRaQueueEntry;
 
-  byte encryptedMessage[255];
-  uint encryptedMessageLength;
-  uint32_t counter = loRaCrypto->encrypt(encryptedMessage, &encryptedMessageLength, _deviceId, messageType, data, dataLength);
-  _loRa->write(encryptedMessage, encryptedMessageLength);
+  if (dataLength > sizeof(loRaQueueEntry.data)) {
+    dataLength = sizeof(loRaQueueEntry.data);
+  } else if (dataLength < 0) {
+    dataLength = 0;
+  }
+  loRaQueueEntry.messageType = messageType;
+  loRaQueueEntry.dataLength = dataLength;
+  memcpy(loRaQueueEntry.data, data, loRaQueueEntry.dataLength);
+  loRaQueue.push(&loRaQueueEntry);
+}
 
-  Serial.print("Sending packet: device ID = ");
-  Serial.print(_deviceId);
-  Serial.print(", counter = ");
-  Serial.print(counter);
-  Serial.print(", type = ");
-  Serial.print(messageType);
-  Serial.print(", length = ");
-  Serial.println(dataLength);
+void LoRaSync::_sendPacket2() {
+  loRaQueueEntry_struct loRaQueueEntry;
+  if (loRaQueue.pull(&loRaQueueEntry)) {
+    // _loRa->idle();
+    _loRa->beginPacket();
 
-  _loRa->endPacket();
+    byte encryptedMessage[255];
+    uint encryptedMessageLength;
+    uint32_t counter = loRaCrypto->encrypt(encryptedMessage,
+                                           &encryptedMessageLength,
+                                           _deviceId,
+                                           loRaQueueEntry.messageType,
+                                           loRaQueueEntry.data,
+                                           loRaQueueEntry.dataLength);
+    _loRa->write(encryptedMessage, encryptedMessageLength);
 
-  // delay(50);  // Wait for the message to transmit
+    Serial.print("Sending packet: device ID = ");
+    Serial.print(_deviceId);
+    Serial.print(", counter = ");
+    Serial.print(counter);
+    Serial.print(", type = ");
+    Serial.print(loRaQueueEntry.messageType);
+    Serial.print(", length = ");
+    Serial.println(loRaQueueEntry.dataLength);
 
-  // _loRa->receive();
+    _loRa->endPacket();
 
-  // _loRa->sleep();
+    delay(1000);
+
+    // delay(50);  // Wait for the message to transmit
+
+    // _loRa->receive();
+
+    // _loRa->sleep();
+  }
 }
 
 void LoRaSync::_sendNetworkTime() {
