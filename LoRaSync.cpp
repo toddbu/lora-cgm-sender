@@ -26,6 +26,7 @@ struct loRaQueueEntry_struct {
   uint16_t messageType;
   byte data[255];
   uint dataLength;
+  bool randomizeTiming;
 };
 cppQueue loRaQueue(sizeof(loRaQueueEntry_struct), LORA_QUEUE_ENTRIES, FIFO);
 #endif
@@ -60,6 +61,8 @@ LoRaSync::LoRaSync(volatile struct data_struct* data, SPIClass* spi) {
 
   _spi = spi;
   _loRa = new LoRaClass();
+
+  _processPacketState = 0x00;
 }
 
 LoRaSync::~LoRaSync() {
@@ -150,11 +153,13 @@ void LoRaSync::sendBootSync() {
 }
 
 void LoRaSync::loop() {
-#if defined(ENABLE_SYNC_SENDER)
-  _sendPacket2();
+#if defined(ENABLE_SYNC)
+  _processQueuedPackets();
+#endif
 
-  if (_data->forceLoRaTimeUpdate) {
-    _sendNetworkTime();
+ #if defined(ENABLE_SYNC_SENDER)
+ if (_data->forceLoRaTimeUpdate) {
+    _sendNetworkTime(true);
     _data->forceLoRaTimeUpdate = false;
   }
   _sendCgmData(false);
@@ -168,7 +173,7 @@ void LoRaSync::loop() {
 }
 
 #if defined(ENABLE_SYNC)  // Receivers will send boot-sync messages
-void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
+void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength, bool randomizeTiming) {
   loRaQueueEntry_struct loRaQueueEntry;
 
   if (dataLength > sizeof(loRaQueueEntry.data)) {
@@ -178,48 +183,62 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength) {
   }
   loRaQueueEntry.messageType = messageType;
   loRaQueueEntry.dataLength = dataLength;
+  loRaQueueEntry.randomizeTiming = randomizeTiming;
   memcpy(loRaQueueEntry.data, data, loRaQueueEntry.dataLength);
   loRaQueue.push(&loRaQueueEntry);
 }
 
-void LoRaSync::_sendPacket2() {
-  loRaQueueEntry_struct loRaQueueEntry;
-  if (loRaQueue.pull(&loRaQueueEntry)) {
-    // _loRa->idle();
-    _loRa->beginPacket();
+void LoRaSync::_processQueuedPackets() {
+  switch (_processPacketState) {
+    case 0x00:
+      loRaQueueEntry_struct loRaQueueEntry;
+      if (loRaQueue.pull(&loRaQueueEntry)) {
+        // _loRa->idle();
+        _loRa->beginPacket();
 
-    byte encryptedMessage[255];
-    uint encryptedMessageLength;
-    uint32_t counter = loRaCrypto->encrypt(encryptedMessage,
-                                           &encryptedMessageLength,
-                                           _deviceId,
-                                           loRaQueueEntry.messageType,
-                                           loRaQueueEntry.data,
-                                           loRaQueueEntry.dataLength);
-    _loRa->write(encryptedMessage, encryptedMessageLength);
+        byte encryptedMessage[255];
+        uint encryptedMessageLength;
+        uint32_t counter = loRaCrypto->encrypt(encryptedMessage,
+                                              &encryptedMessageLength,
+                                              _deviceId,
+                                              loRaQueueEntry.messageType,
+                                              loRaQueueEntry.data,
+                                              loRaQueueEntry.dataLength);
+        _loRa->write(encryptedMessage, encryptedMessageLength);
 
-    Serial.print("Sending packet: device ID = ");
-    Serial.print(_deviceId);
-    Serial.print(", counter = ");
-    Serial.print(counter);
-    Serial.print(", type = ");
-    Serial.print(loRaQueueEntry.messageType);
-    Serial.print(", length = ");
-    Serial.println(loRaQueueEntry.dataLength);
+        Serial.print("Sending packet: device ID = ");
+        Serial.print(_deviceId);
+        Serial.print(", counter = ");
+        Serial.print(counter);
+        Serial.print(", type = ");
+        Serial.print(loRaQueueEntry.messageType);
+        Serial.print(", length = ");
+        Serial.println(loRaQueueEntry.dataLength);
 
-    _loRa->endPacket();
+        _loRa->endPacket();
 
-    delay(1000);
+        _processPacketTimer.reset();
+        _processPacketState = 0x01;
 
-    // delay(50);  // Wait for the message to transmit
+        // delay(50);  // Wait for the message to transmit
+      }
 
-    // _loRa->receive();
+      break;
 
-    // _loRa->sleep();
+    case 0x01:
+      if (_processPacketTimer.isExpired(1000)) {
+        // _loRa->receive();
+        // _loRa->sleep();
+
+        _processPacketTimer.reset(ULONG_MAX);
+        _processPacketState = 0x00;
+      }
+
+      break;
   }
 }
 
-void LoRaSync::_sendNetworkTime() {
+void LoRaSync::_sendNetworkTime(bool randomizeTiming) {
 #if defined(DATA_COLLECTOR)
   struct clockInfo_struct clockInfo;
 
@@ -230,7 +249,7 @@ void LoRaSync::_sendNetworkTime() {
   clockInfo.standardTimezoneOffset = _data->standardTimezoneOffset;
   clockInfo.daylightTimezoneOffset = _data->daylightTimezoneOffset;
 
-  _sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo));  // Time update
+  _sendPacket(1, (byte*) &clockInfo, sizeof(clockInfo), randomizeTiming);  // Time update
 #endif
 }
 
@@ -239,7 +258,7 @@ void LoRaSync::_sendCgmData(bool forceUpdate) {
       _cgmGuaranteeTimer.isExpired(600000) ||  // Once every ten minutes
       forceUpdate) {
     struct cgm_struct cgm = { _data->mgPerDl & 0xFFFF, time(nullptr) };
-    _sendPacket(29, (byte*) &cgm, sizeof(cgm));  // CGM reading
+    _sendPacket(29, (byte*) &cgm, sizeof(cgm), forceUpdate);  // CGM reading
     _cgmGuaranteeTimer.reset();
     _oldData->mgPerDl = _data->mgPerDl;
   }
@@ -250,7 +269,7 @@ void LoRaSync::_sendPropaneLevel(bool forceUpdate) {
       _propaneGuaranteeTimer.isExpired(3600000) ||  // Once per hour
       forceUpdate) {
     byte data = (_data->propaneLevel >= 0 ? _data->propaneLevel & 0xFF : 0xFF);
-    _sendPacket(30, (byte*) &data, sizeof(data));  // Propane level in percent
+    _sendPacket(30, (byte*) &data, sizeof(data), forceUpdate);  // Propane level in percent
     _propaneGuaranteeTimer.reset();
     _oldData->propaneLevel = _data->propaneLevel;
   }
@@ -270,7 +289,7 @@ void LoRaSync::_sendTemperatures(bool forceUpdate) {
     temperatures.outdoorTemperature = _data->outdoorTemperature;
     temperatures.outdoorHumidity = _data->outdoorHumidity;
 
-    _sendPacket(31, (byte*) &temperatures, sizeof(temperatures) - sizeof(temperatures.padding0));
+    _sendPacket(31, (byte*) &temperatures, sizeof(temperatures) - sizeof(temperatures.padding0), forceUpdate);
     _temperatureGuaranteeTimer.reset();
     _oldData->indoorHumidity = _data->indoorHumidity;
     _oldData->indoorTemperature = _data->indoorTemperature;
@@ -364,7 +383,7 @@ void LoRaSync::_receiveLoRaData() {
         sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) messageData), time(nullptr));
         Serial.println(displayBuffer);
 
-        _sendNetworkTime();
+        _sendNetworkTime(true);
         _sendCgmData(true);
         _sendPropaneLevel(true);
         _sendTemperatures(true);

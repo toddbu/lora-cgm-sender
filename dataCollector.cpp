@@ -260,6 +260,7 @@ void vHttpsTask(void* pvParameters) {
         if (callApi("/llu/connections", "cgmNologin", (void**) &doc)) {
           JsonObject connection = doc["data"][0];
           data.mgPerDl = scrubMgPerDl((short) connection["glucoseMeasurement"]["ValueInMgPerDl"]);
+          // data.mgPerDl = 255;
           const char* timestamp = (const char*) connection["glucoseMeasurement"]["Timestamp"];
           Serial.print("Glucose level = ");
           Serial.print(data.mgPerDl);
