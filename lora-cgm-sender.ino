@@ -46,7 +46,7 @@ void setup() {
   display->setup();
 #endif
 
-  Serial.setTxBufferSize(2048);
+  Serial.setTxBufferSize(16384);
   Serial.begin(9600);
   unsigned long baseMillis = millis();
   while (!Serial &&

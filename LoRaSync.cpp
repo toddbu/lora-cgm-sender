@@ -191,41 +191,63 @@ void LoRaSync::_sendPacket(uint16_t messageType, byte* data, uint dataLength, bo
 void LoRaSync::_processQueuedPackets() {
   switch (_processPacketState) {
     case 0x00:
-      loRaQueueEntry_struct loRaQueueEntry;
-      if (loRaQueue.pull(&loRaQueueEntry)) {
-        // _loRa->idle();
-        _loRa->beginPacket();
-
-        byte encryptedMessage[255];
-        uint encryptedMessageLength;
-        uint32_t counter = loRaCrypto->encrypt(encryptedMessage,
-                                              &encryptedMessageLength,
-                                              _deviceId,
-                                              loRaQueueEntry.messageType,
-                                              loRaQueueEntry.data,
-                                              loRaQueueEntry.dataLength);
-        _loRa->write(encryptedMessage, encryptedMessageLength);
-
-        Serial.print("Sending packet: device ID = ");
-        Serial.print(_deviceId);
-        Serial.print(", counter = ");
-        Serial.print(counter);
-        Serial.print(", type = ");
-        Serial.print(loRaQueueEntry.messageType);
-        Serial.print(", length = ");
-        Serial.println(loRaQueueEntry.dataLength);
-
-        _loRa->endPacket();
-
-        _processPacketTimer.reset();
-        _processPacketState = 0x01;
-
-        // delay(50);  // Wait for the message to transmit
+      {
+        loRaQueueEntry_struct loRaQueueEntry;
+        if (loRaQueue.peek(&loRaQueueEntry)) {
+          if (loRaQueueEntry.randomizeTiming) {
+            _processPacketTimer.reset();
+            _processPacketState = 0x01;
+          } else {
+            _processPacketState = 0x02;
+          }
+        }
       }
 
       break;
 
     case 0x01:
+      _processPacketState = 0x02;
+
+      break;
+
+    case 0x02:
+      {
+        loRaQueueEntry_struct loRaQueueEntry;
+        if (loRaQueue.pull(&loRaQueueEntry)) {
+          // _loRa->idle();
+          _loRa->beginPacket();
+
+          byte encryptedMessage[255];
+          uint encryptedMessageLength;
+          uint32_t counter = loRaCrypto->encrypt(encryptedMessage,
+                                                &encryptedMessageLength,
+                                                _deviceId,
+                                                loRaQueueEntry.messageType,
+                                                loRaQueueEntry.data,
+                                                loRaQueueEntry.dataLength);
+          _loRa->write(encryptedMessage, encryptedMessageLength);
+
+          Serial.print("Sending packet: device ID = ");
+          Serial.print(_deviceId);
+          Serial.print(", counter = ");
+          Serial.print(counter);
+          Serial.print(", type = ");
+          Serial.print(loRaQueueEntry.messageType);
+          Serial.print(", length = ");
+          Serial.println(loRaQueueEntry.dataLength);
+
+          _loRa->endPacket();
+
+          _processPacketTimer.reset();
+          _processPacketState = 0x03;
+
+          // delay(50);  // Wait for the message to transmit
+        }
+      }
+
+      break;
+
+    case 0x03:
       if (_processPacketTimer.isExpired(1000)) {
         // _loRa->receive();
         // _loRa->sleep();
@@ -343,6 +365,9 @@ void LoRaSync::_receiveLoRaData() {
     // Network time
     case 1:
       struct clockInfo_struct clockInfo;
+      if (messageMetadata.length != sizeof(clockInfo)) {
+        break;
+      }
       memcpy(&clockInfo, messageData, sizeof(clockInfo));
 
 #if !defined(DATA_COLLECTOR)
@@ -360,6 +385,8 @@ void LoRaSync::_receiveLoRaData() {
         _data->dstEnd = clockInfo.dstEnd;
         _data->standardTimezoneOffset = clockInfo.standardTimezoneOffset;
         _data->daylightTimezoneOffset = clockInfo.daylightTimezoneOffset;
+        Serial.print("Updating _data->daylightTimezoneOffset to ");
+        Serial.println(_data->daylightTimezoneOffset);
         _data->forceDisplayTimeUpdate = true;
         // We won't change the value of _data->forceDisplayTimeUpdate for the following reasons:
         //   1. We don't want to keep bouncing updates back and forth between devices when they receive a time from another device,

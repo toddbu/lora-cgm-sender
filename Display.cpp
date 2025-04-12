@@ -137,12 +137,15 @@ void Display::_displayClock() {
       time_t nowSecs = _data->time;
       struct tm timeinfo;
       gmtime_r((const time_t *) &nowSecs, &timeinfo);
+
       // Serial.print("nowSecs = ");
       // Serial.println(nowSecs);
       // Serial.print("_data->dstBegin = ");
       // Serial.println(_data->dstBegin);
       // Serial.print("_data->dstEnd) = ");
       // Serial.println(_data->dstEnd);
+      // Serial.print("_data->daylightTimezoneOffset) = ");
+      // Serial.println(_data->daylightTimezoneOffset);
 
       int32_t timezoneOffset;
       if ((nowSecs >= _data->dstBegin) &&
