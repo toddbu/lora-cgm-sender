@@ -389,7 +389,12 @@ void LoRaSync::_receiveLoRaData() {
     // Network time
     case 1:
       struct clockInfo_struct clockInfo;
-      if (messageMetadata.length != sizeof(clockInfo)) {
+      if (messageMetadata.length < sizeof(clockInfo)) {
+          Serial.print("error: the message has the wrong length. It is ");
+          Serial.print(messageMetadata.length);
+          Serial.print(" byte(s) long, but must be at least ");
+          Serial.print(sizeof(clockInfo));
+          Serial.println(" bytes");
         break;
       }
       memcpy(&clockInfo, messageData, sizeof(clockInfo));
@@ -429,7 +434,25 @@ void LoRaSync::_receiveLoRaData() {
 
     // Boot-sync
     case 2:
-      sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) messageData), time(nullptr));
+      struct bootSync_struct bootSync;
+      if (messageMetadata.length < sizeof(bootSync)) {
+          Serial.print("error: the message has the wrong length. It is ");
+          Serial.print(messageMetadata.length);
+          Serial.print(" byte(s) long, but must be at least ");
+          Serial.print(sizeof(bootSync));
+          Serial.println(" bytes");
+        break;
+      }
+      memcpy(&bootSync, messageData, sizeof(bootSync));
+
+      sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d, appId = %d, version = %d.%d.%d at time %" PRId64 "\"",
+              messageMetadata.counter,
+              bootSync.deviceId,
+              bootSync.appId,
+              bootSync.major,
+              bootSync.minor,
+              bootSync.patch,
+              time(nullptr));
       Serial.println(displayBuffer);
 
 #if defined(ENABLE_SYNC_SENDER)
@@ -445,7 +468,14 @@ void LoRaSync::_receiveLoRaData() {
     case 29:
       {
         struct cgm_struct cgm;
-
+        if (messageMetadata.length < sizeof(cgm)) {
+          Serial.print("error: the message has the wrong length. It is ");
+          Serial.print(messageMetadata.length);
+          Serial.print(" byte(s) long, but must be at least ");
+          Serial.print(sizeof(cgm));
+          Serial.println(" bytes");
+          break;
+        }
         memcpy(&cgm, messageData, sizeof(cgm));
 
         _data->mgPerDl = scrubMgPerDl(cgm.mgPerDl);
@@ -456,6 +486,13 @@ void LoRaSync::_receiveLoRaData() {
 
     case 30:
       {
+        if (messageMetadata.length < 1) {
+          Serial.print("error: the message has the wrong length. It is ");
+          Serial.print(messageMetadata.length);
+          Serial.println(" byte(s) long, but must be at least 1 byte");
+          break;
+        }
+
         _data->propaneLevel = scrubPropaneLevel((byte) messageData[0]);
         sprintf(displayBuffer, "\"messageId %d with propane reading = %d at time %" PRId64 "\"", messageMetadata.counter, _data->propaneLevel, time(nullptr));
         Serial.println(displayBuffer);
