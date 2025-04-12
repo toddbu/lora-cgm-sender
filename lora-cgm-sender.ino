@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <TimeLib.h>
 #include <Time.h>
+#include "semver.h"
+struct semver_struct version = {0x01, 0x00, 0x00};
 #include <ExpirationTimer.h>
 
 #include "lora-cgm-sender.ino.globals.h"
@@ -62,7 +64,7 @@ void setup() {
 #if defined(ENABLE_SYNC)
   // spi2.begin(SCK, MISO, MOSI, SS);
   spi2.begin(5, 6, 7, 8); // ESP32-S3-Zero
-  loRaSync = new LoRaSync(&data, &spi2);
+  loRaSync = new LoRaSync(1, &version, &data, &spi2);
   loRaSync->setup();
 #endif
 

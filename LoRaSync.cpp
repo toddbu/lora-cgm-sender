@@ -5,7 +5,7 @@
 #include "LoRaSync.h"
 
 #include "lora-cgm-sender.ino.globals.h"
-#if defined(ENABLE_SYNC)  // Receivers will send boot-sync messages
+#if defined(ENABLE_SYNC)
 #include <cppQueue.h>
 #endif
 
@@ -20,7 +20,16 @@ struct deviceMapping_struct deviceMapping[] = {
   {"34:b7:da:59:0a:90", 34},  // Large display #2
 };
 
-#if defined(ENABLE_SYNC)  // Receivers will send boot-sync messages
+#if defined(ENABLE_SYNC)
+struct bootSync_struct {
+  uint16_t deviceId;
+  uint16_t appId;
+  byte major;
+  byte minor;
+  byte patch;
+  byte padding0;
+};
+
 #define LORA_QUEUE_ENTRIES 8
 struct loRaQueueEntry_struct {
   uint16_t messageType;
@@ -54,7 +63,9 @@ struct temperature_struct {
 
 LoRaCrypto* loRaCrypto;
 
-LoRaSync::LoRaSync(volatile struct data_struct* data, SPIClass* spi) {
+LoRaSync::LoRaSync(uint16_t appId, struct semver_struct* version, volatile struct data_struct* data, SPIClass* spi) {
+  _appId = appId;
+  _version = *version;
   _data = data;
   _oldData = (struct data_struct*) malloc(sizeof(struct data_struct));
   memcpy(_oldData, (const void*) _data, sizeof(struct data_struct));
@@ -147,9 +158,22 @@ void LoRaSync::setup() {
 }
 
 void LoRaSync::sendBootSync() {
-  Serial.print(F("Broadcasting boot-sync message for device ID = "));
-  Serial.println(_deviceId);
-  _sendPacket(2, (byte*) &_deviceId, sizeof(_deviceId));  // Boot-sync message
+  struct bootSync_struct bootSync;
+
+  bootSync.deviceId = _deviceId;
+  bootSync.appId = _appId;
+  bootSync.major = _version.major;
+  bootSync.minor = _version.minor;
+  bootSync.patch = _version.patch;
+
+  Serial.printf(F("Broadcasting boot-sync message for device ID = %d, app ID = %d, version = %d.%d.%d"),
+                bootSync.deviceId,
+                bootSync.appId,
+                bootSync.major,
+                bootSync.minor,
+                bootSync.patch);
+  Serial.println();
+  _sendPacket(2, (byte*) &bootSync, sizeof(bootSync) - sizeof(bootSync.padding0));  // Boot-sync message
 }
 
 void LoRaSync::loop() {
@@ -405,11 +429,11 @@ void LoRaSync::_receiveLoRaData() {
 
     // Boot-sync
     case 2:
+      sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) messageData), time(nullptr));
+      Serial.println(displayBuffer);
+
 #if defined(ENABLE_SYNC_SENDER)
       {
-        sprintf(displayBuffer, "\"boot-sync messageId %d with deviceId = %d at time %" PRId64 "\"", messageMetadata.counter, *((uint16_t*) messageData), time(nullptr));
-        Serial.println(displayBuffer);
-
         _sendNetworkTime(true);
         _sendCgmData(true);
         _sendPropaneLevel(true);

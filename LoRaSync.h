@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <LoRa.h>
 #include <Arduino.h>
+#include "semver.h"
 #include "credentials.h"
 #include "data.h"
 #include <ExpirationTimer.h>
@@ -11,6 +12,8 @@
 
 class LoRaSync {
   private:
+    uint16_t _appId;
+    struct semver_struct _version;
     volatile struct data_struct* _data;
     struct data_struct* _oldData;
     uint16_t _deviceId = 0;
@@ -32,7 +35,7 @@ class LoRaSync {
     void _receiveLoRaData();
 
   public:
-    LoRaSync(volatile struct data_struct* data, SPIClass* spi);
+    LoRaSync(uint16_t appId, struct semver_struct* version, volatile struct data_struct* data, SPIClass* spi);
     ~LoRaSync();
 
     void setup();
