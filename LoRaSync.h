@@ -22,6 +22,7 @@ class LoRaSync {
     ExpirationTimer _cgmGuaranteeTimer;
     ExpirationTimer _propaneGuaranteeTimer;
     ExpirationTimer _temperatureGuaranteeTimer;
+    int _randomLoRaDelay;
 
     int _processPacketState;
     ExpirationTimer _processPacketTimer;

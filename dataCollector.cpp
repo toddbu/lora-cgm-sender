@@ -61,7 +61,7 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
     }
   }
 
-  Serial.println(url);
+  // Serial.println(url);
   if (!https.begin(client, url)) {  // HTTPS
     Serial.println("[HTTPS] Unable to connect");
     https.end();
@@ -103,7 +103,7 @@ bool callApi(const char* endpoint, const char* requestType, void** doc) {
   }
 
   String payload = https.getString();
-  Serial.println(payload);  // Print the response body
+  // Serial.println(payload);  // Print the response body
   if (strcmp(requestType, "timezoneInfo") == 0) {
     int length = payload.length() + 1;
     *doc = malloc(length);

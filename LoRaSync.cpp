@@ -73,6 +73,10 @@ LoRaSync::LoRaSync(uint16_t appId, struct semver_struct* version, volatile struc
   _spi = spi;
   _loRa = new LoRaClass();
 
+  uint16_t seed = analogRead(17);
+  Serial.print("Random seed = ");
+  Serial.println(seed);
+  randomSeed(seed);  // Open pin on the back of the board
   _processPacketState = 0x00;
 }
 
@@ -219,6 +223,7 @@ void LoRaSync::_processQueuedPackets() {
         loRaQueueEntry_struct loRaQueueEntry;
         if (loRaQueue.peek(&loRaQueueEntry)) {
           if (loRaQueueEntry.randomizeTiming) {
+            _randomLoRaDelay = random(0, 3000) & 0xFFFF;
             _processPacketTimer.reset();
             _processPacketState = 0x01;
           } else {
@@ -230,7 +235,9 @@ void LoRaSync::_processQueuedPackets() {
       break;
 
     case 0x01:
-      _processPacketState = 0x02;
+      if (_processPacketTimer.isExpired(_randomLoRaDelay)) {
+        _processPacketState = 0x02;
+      }
 
       break;
 
