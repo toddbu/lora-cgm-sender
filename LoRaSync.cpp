@@ -442,11 +442,11 @@ void LoRaSync::_receiveLoRaData() {
     // Boot-sync
     case 2:
       struct bootSync_struct bootSync;
-      if (messageMetadata.length < sizeof(bootSync)) {
+      if (messageMetadata.length < (sizeof(bootSync) - sizeof(bootSync.padding0))) {
           Serial.print("error: the message has the wrong length. It is ");
           Serial.print(messageMetadata.length);
           Serial.print(" byte(s) long, but must be at least ");
-          Serial.print(sizeof(bootSync));
+          Serial.print(sizeof(bootSync) - sizeof(bootSync.padding0));
           Serial.println(" bytes");
         break;
       }
