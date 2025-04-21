@@ -5,6 +5,7 @@
 #include "semver.h"
 struct semver_struct version = {0x01, 0x00, 0x00};
 #include <ExpirationTimer.h>
+#include <PersistentStorage.h>
 
 #include "lora-cgm-sender.ino.globals.h"
 
@@ -32,6 +33,11 @@ Display* display;
 
 #if defined(DATA_COLLECTOR)
 #include "dataCollector.h"
+
+struct wifiCredentials_struct {
+  char* ssid;
+  char* passphrase;
+};
 #endif
 
 #if defined(ENABLE_SYNC)
@@ -69,7 +75,16 @@ void setup() {
 #endif
 
 #if defined(DATA_COLLECTOR)
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  if (!PersistentStorage::setup(4096)) {
+    Serial.println("!PersistentStorage setup failed!");
+  }
+
+  struct wifiCredentials_struct wifiCredentials = {WIFI_SSID, WIFI_PASSPHRASE};
+  PersistentStorage::registerPartition("wifi-creds", sizeof(wifiCredentials_struct));
+  PersistentStorage::writePartition("wifi-creds", 0, (byte*) &wifiCredentials, sizeof(wifiCredentials_struct));
+  PersistentStorage::readPartition("wifi-creds", 0, (byte*) &wifiCredentials, sizeof(wifiCredentials_struct));
+
+  WiFi.begin(wifiCredentials.ssid, wifiCredentials.passphrase);
 #endif
 
   setupState = 0x00;
@@ -77,6 +92,8 @@ void setup() {
 
 unsigned long baseMillis = millis();
 void loop() {
+  PersistentStorage::loop();
+
   switch (setupState) {
     // Initialize the time
     case 0x00:
